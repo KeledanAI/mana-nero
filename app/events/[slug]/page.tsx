@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { PublicShell } from "@/components/public-shell";
 import { notFound } from "next/navigation";
 
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { eventCardImageUrl } from "@/lib/design/media";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, getEventBySlug, getUserRegistrations } from "@/lib/gamestore/data";
+import { MapPin } from "lucide-react";
 import { bookEvent, cancelEventBooking } from "../actions";
 
 type PageProps = {

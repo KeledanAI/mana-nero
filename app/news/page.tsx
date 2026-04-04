@@ -2,9 +2,8 @@ import { NewsCard } from "@/components/news-card";
 import { PublicShell } from "@/components/public-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getNewsImage } from "@/lib/design/media";
+import { newsCardImageUrl } from "@/lib/design/media";
 import { createClient } from "@/lib/supabase/server";
-import { cmsStoragePublicUrl } from "@/lib/supabase/cms-storage";
 import { formatDateTime, getPublishedPosts } from "@/lib/gamestore/data";
 
 export default async function NewsPage() {
@@ -34,7 +33,7 @@ export default async function NewsPage() {
           {posts.map((post, index) => (
             <NewsCard
               key={post.id}
-              imageUrl={cmsStoragePublicUrl(post.cover_image_path ?? "") ?? getNewsImage(post.slug, index)}
+              imageUrl={newsCardImageUrl(post.cover_image_path, post.slug, index)}
               title={post.title}
               description={post.body || "Apri il dettaglio per leggere il contenuto completo."}
               meta={post.published_at ? formatDateTime(post.published_at) : "News"}

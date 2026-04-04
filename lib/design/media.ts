@@ -1,5 +1,7 @@
 import heroManaNeroTradate from "@/images/hero-mana-nero-tradate.jpg";
 
+import { cmsStoragePublicUrl } from "@/lib/supabase/cms-storage";
+
 export const siteMedia = {
   hero: heroManaNeroTradate.src,
   store:
@@ -34,12 +36,42 @@ export function getEventImage(slug: string, index = 0) {
   if (slug.includes("magic")) return siteMedia.categories.magic;
   if (slug.includes("pokemon")) return siteMedia.categories.pokemon;
   if (slug.includes("one-piece")) return siteMedia.categories.onePiece;
+  if (slug.includes("strixhaven") || slug.includes("prerelease-mtg")) {
+    return siteMedia.categories.magic;
+  }
   return siteMedia.events[index % siteMedia.events.length];
+}
+
+/**
+ * `cover_image_path`: percorso bucket Supabase oppure URL relativo da `public/` (es. `/images/events/foo.png`).
+ */
+export function eventCardImageUrl(
+  coverPath: string | null | undefined,
+  slug: string,
+  index: number,
+): string {
+  const raw = (coverPath ?? "").trim();
+  if (raw.startsWith("/")) return raw;
+  const fromBucket = cmsStoragePublicUrl(raw);
+  if (fromBucket) return fromBucket;
+  return getEventImage(slug, index);
 }
 
 export function getNewsImage(slug: string, index = 0) {
   if (slug.includes("event")) return siteMedia.events[index % siteMedia.events.length];
   return siteMedia.news[index % siteMedia.news.length];
+}
+
+export function newsCardImageUrl(
+  coverPath: string | null | undefined,
+  slug: string,
+  index: number,
+): string {
+  const raw = (coverPath ?? "").trim();
+  if (raw.startsWith("/")) return raw;
+  const fromBucket = cmsStoragePublicUrl(raw);
+  if (fromBucket) return fromBucket;
+  return getNewsImage(slug, index);
 }
 
 export function getCategoryImage(name: string) {

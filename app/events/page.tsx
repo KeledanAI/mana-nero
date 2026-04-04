@@ -8,9 +8,8 @@ import { SectionHeading } from "@/components/section-heading";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getEventImage } from "@/lib/design/media";
+import { eventCardImageUrl } from "@/lib/design/media";
 import { formatDateTime, formatRegistrationStatus, getPublishedEvents, getUserRegistrations } from "@/lib/gamestore/data";
-import { cmsStoragePublicUrl } from "@/lib/supabase/cms-storage";
 import { createClient } from "@/lib/supabase/server";
 import { bookEvent, cancelEventBooking } from "./actions";
 
@@ -56,7 +55,7 @@ export default async function EventsPage() {
             return (
               <div key={event.id} className="space-y-4">
                 <EventCard
-                  imageUrl={cmsStoragePublicUrl(event.cover_image_path ?? "") ?? getEventImage(event.slug, index)}
+                  imageUrl={eventCardImageUrl(event.cover_image_path, event.slug, index)}
                   title={event.title}
                   description={event.description || "Dettagli evento non ancora inseriti."}
                   date={formatDateTime(event.starts_at)}

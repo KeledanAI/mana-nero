@@ -9,9 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SocialLinks } from "@/components/social-links";
-import { getCategoryImage, getEventImage, getNewsImage, siteMedia } from "@/lib/design/media";
+import {
+  eventCardImageUrl,
+  getCategoryImage,
+  newsCardImageUrl,
+  siteMedia,
+} from "@/lib/design/media";
 import { formatDateTime, getRecentPosts, getUpcomingEvents } from "@/lib/gamestore/data";
-import { cmsStoragePublicUrl } from "@/lib/supabase/cms-storage";
 import { createClient } from "@/lib/supabase/server";
 import { CalendarDays, Clock, MapPin, Phone, Users } from "lucide-react";
 
@@ -181,7 +185,7 @@ export default async function Home() {
             {featuredEvents.map((event, index) => (
               <EventCard
                 key={event.id}
-                imageUrl={cmsStoragePublicUrl(event.cover_image_path ?? "") ?? getEventImage(event.slug, index)}
+                imageUrl={eventCardImageUrl(event.cover_image_path, event.slug, index)}
                 title={event.title}
                 description={event.description || "Dettagli evento in arrivo."}
                 date={formatDateTime(event.starts_at)}
@@ -220,7 +224,7 @@ export default async function Home() {
             {recentPosts.map((post, index) => (
               <NewsCard
                 key={post.id}
-                imageUrl={cmsStoragePublicUrl(post.cover_image_path ?? "") ?? getNewsImage(post.slug, index)}
+                imageUrl={newsCardImageUrl(post.cover_image_path, post.slug, index)}
                 title={post.title}
                 description={
                   post.body?.slice(0, 150) || "Apri il dettaglio per leggere l'aggiornamento completo."
