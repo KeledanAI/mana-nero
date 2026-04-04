@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSupabaseAnonKey } from "@/lib/supabase/env";
 import { hasEnvVars } from "../utils";
 
 export async function updateSession(request: NextRequest) {
@@ -15,9 +16,10 @@ export async function updateSession(request: NextRequest) {
 
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
+  const key = getSupabaseAnonKey()!;
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    key,
     {
       cookies: {
         getAll() {
@@ -47,12 +49,17 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  if (
-    request.nextUrl.pathname !== "/" &&
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
+  const path = request.nextUrl.pathname;
+  const isPublicPath =
+    path === "/" ||
+    path.startsWith("/auth") ||
+    path.startsWith("/events") ||
+    path.startsWith("/news") ||
+    path.startsWith("/contact") ||
+    path.startsWith("/community") ||
+    path.startsWith("/reserve");
+
+  if (!isPublicPath && !user) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";

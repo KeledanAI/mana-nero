@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -9,15 +9,10 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  title: "Mana Nero Fumetteria — Tradate",
+  description:
+    "Fumetti, giochi di carte collezionabili, giochi da tavolo ed eventi. Il cuore ludico di Tradate.",
 };
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  display: "swap",
-  subsets: ["latin"],
-});
 
 export default function RootLayout({
   children,
@@ -25,15 +20,26 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.className} antialiased`}>
+    <html lang="it" suppressHydrationWarning>
+      <body className="antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
           {children}
+          <Toaster
+            theme="dark"
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "hsl(223 22% 16%)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "white",
+              },
+            }}
+          />
         </ThemeProvider>
       </body>
     </html>

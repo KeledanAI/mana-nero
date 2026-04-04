@@ -1,0 +1,355 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+import { userMeetsRole } from "@/lib/auth/roles";
+import { enqueueMessage } from "@/lib/comms/enqueue";
+import { runBookingAction } from "@/lib/domain/booking";
+import { requireUserWithRole } from "@/lib/gamestore/authz";
+import { CMS_STORAGE_BUCKET } from "@/lib/supabase/cms-storage";
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function sanitizeFilename(filename: string) {
+  return filename
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function extensionFromType(type: string, fallbackName: string) {
+  if (type === "image/jpeg") return "jpg";
+  if (type === "image/png") return "png";
+  if (type === "image/webp") return "webp";
+  const clean = sanitizeFilename(fallbackName);
+  const ext = clean.split(".").pop();
+  return ext && ext.length <= 5 ? ext : "jpg";
+}
+
+function validateUploadImage(file: File) {
+  if (!file || file.size <= 0) return;
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Formato immagine non supportato. Usa JPG, PNG o WEBP.");
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error("Immagine troppo grande. Limite massimo 5MB.");
+  }
+}
+
+async function uploadCmsImage(
+  supabase: Awaited<ReturnType<typeof requireUserWithRole>>["supabase"],
+  entity: "events" | "posts",
+  entityKey: string,
+  file: File,
+) {
+  validateUploadImage(file);
+  if (file.size <= 0) return null;
+
+  const ext = extensionFromType(file.type, file.name || "image.jpg");
+  const safeName = sanitizeFilename((file.name || "image").replace(/\.[^.]*$/, "")) || "image";
+  const objectPath = `${entity}/${sanitizeFilename(entityKey)}/${Date.now()}-${safeName}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(CMS_STORAGE_BUCKET)
+    .upload(objectPath, file, { contentType: file.type, upsert: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return objectPath;
+}
+
+export async function saveEvent(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+
+  const id = String(formData.get("id") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const slug = String(formData.get("slug") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const gameType = String(formData.get("game_type") || "").trim();
+  const startsAt = String(formData.get("starts_at") || "").trim();
+  const endsAt = String(formData.get("ends_at") || "").trim();
+  const capacity = Number.parseInt(String(formData.get("capacity") || "0"), 10);
+  const priceDisplay = String(formData.get("price_display") || "").trim();
+  const categoryId = String(formData.get("category_id") || "").trim();
+  const status = String(formData.get("status") || "draft").trim();
+  const coverImagePathInput = String(formData.get("cover_image_path") || "").trim();
+  const coverImageFile = formData.get("cover_image");
+  const eventKey = id || slug || crypto.randomUUID();
+
+  let uploadedCoverPath: string | null = null;
+  if (coverImageFile instanceof File && coverImageFile.size > 0) {
+    try {
+      uploadedCoverPath = await uploadCmsImage(supabase, "events", eventKey, coverImageFile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "upload_failed";
+      redirect(`/admin/events?error=${encodeURIComponent(message)}`);
+    }
+  }
+
+  const payload = {
+    title,
+    slug,
+    description: description || null,
+    game_type: gameType || null,
+    starts_at: startsAt,
+    ends_at: endsAt || null,
+    capacity,
+    price_display: priceDisplay || null,
+    category_id: categoryId ? categoryId : null,
+    cover_image_path: uploadedCoverPath || coverImagePathInput || null,
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
+  const query = id
+    ? supabase.from("events").update(payload).eq("id", id)
+    : supabase.from("events").insert(payload);
+
+  const { error } = await query;
+
+  if (error) redirect(`/admin/events?error=${encodeURIComponent(error.message)}`);
+
+  revalidatePath("/admin/events");
+  revalidatePath("/events");
+  revalidatePath("/");
+  redirect("/admin/events?success=event_saved");
+}
+
+export async function deleteEvent(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const { error } = await supabase.from("events").delete().eq("id", id);
+  if (error) redirect(`/admin/events?error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/admin/events");
+  revalidatePath("/events");
+  revalidatePath("/");
+  redirect("/admin/events?success=event_deleted");
+}
+
+export async function savePost(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const slug = String(formData.get("slug") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+  const status = String(formData.get("status") || "draft").trim();
+  const coverImagePathInput = String(formData.get("cover_image_path") || "").trim();
+  const coverImageFile = formData.get("cover_image");
+  const postKey = id || slug || crypto.randomUUID();
+
+  let uploadedCoverPath: string | null = null;
+  if (coverImageFile instanceof File && coverImageFile.size > 0) {
+    try {
+      uploadedCoverPath = await uploadCmsImage(supabase, "posts", postKey, coverImageFile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "upload_failed";
+      redirect(`/admin/posts?error=${encodeURIComponent(message)}`);
+    }
+  }
+
+  let publishedAt: string | null = null;
+  if (status === "published") {
+    if (id) {
+      const { data: existing } = await supabase
+        .from("posts")
+        .select("published_at")
+        .eq("id", id)
+        .maybeSingle();
+      publishedAt = existing?.published_at ?? new Date().toISOString();
+    } else {
+      publishedAt = new Date().toISOString();
+    }
+  }
+
+  const payload = {
+    title,
+    slug,
+    body: body || null,
+    cover_image_path: uploadedCoverPath || coverImagePathInput || null,
+    status,
+    published_at: publishedAt,
+    updated_at: new Date().toISOString(),
+  };
+
+  const query = id
+    ? supabase.from("posts").update(payload).eq("id", id)
+    : supabase.from("posts").insert({ ...payload, author_id: user.id });
+
+  const { error } = await query;
+  if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+
+  await enqueueMessage({
+    idempotencyKey: `post:${slug}:${status}`,
+    channel: "internal",
+    payload: { kind: "post_saved", slug, status, title },
+  });
+
+  revalidatePath("/admin/posts");
+  revalidatePath("/news");
+  revalidatePath("/");
+  redirect("/admin/posts?success=post_saved");
+}
+
+export async function deletePost(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const { error } = await supabase.from("posts").delete().eq("id", id);
+  if (error) redirect(`/admin/posts?error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/admin/posts");
+  revalidatePath("/news");
+  revalidatePath("/");
+  redirect("/admin/posts?success=post_deleted");
+}
+
+export async function addAdminNote(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const subjectProfileId = String(formData.get("subject_profile_id") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+
+  const { error } = await supabase.from("admin_notes").insert({
+    subject_profile_id: subjectProfileId,
+    author_id: user.id,
+    body,
+  });
+
+  if (error) {
+    redirect(
+      `/admin/crm/${encodeURIComponent(subjectProfileId)}?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+  revalidatePath("/admin/crm");
+  revalidatePath(`/admin/crm/${subjectProfileId}`);
+  redirect(`/admin/crm/${subjectProfileId}?success=note_saved`);
+}
+
+export async function checkInRegistration(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const registrationId = String(formData.get("registration_id") || "").trim();
+  const eventId = String(formData.get("event_id") || "").trim();
+
+  try {
+    await runBookingAction(supabase, "staff_check_in", {
+      registrationId,
+      eventId: null,
+    });
+  } catch (error) {
+    redirect(
+      `/admin/events/${eventId}?error=${encodeURIComponent(
+        error instanceof Error ? error.message : "check_in_failed",
+      )}`,
+    );
+  }
+
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?success=checked_in`);
+}
+
+export async function saveEventCategory(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const name = String(formData.get("name") || "").trim();
+  const slug = String(formData.get("slug") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+
+  const payload = {
+    name,
+    slug,
+    description: description || null,
+  };
+
+  const query = id
+    ? supabase.from("event_categories").update(payload).eq("id", id)
+    : supabase.from("event_categories").insert(payload);
+
+  const { error } = await query;
+  if (error) {
+    redirect(`/admin/categories?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/events");
+  redirect("/admin/categories?success=category_saved");
+}
+
+export async function deleteEventCategory(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const { error } = await supabase.from("event_categories").delete().eq("id", id);
+  if (error) {
+    redirect(`/admin/categories?error=${encodeURIComponent(error.message)}`);
+  }
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/events");
+  redirect("/admin/categories?success=category_deleted");
+}
+
+export async function updateProductRequestStatus(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const status = String(formData.get("status") || "").trim();
+  const notes = String(formData.get("notes") || "").trim();
+
+  const allowed = ["new", "in_review", "fulfilled", "cancelled"] as const;
+  if (!allowed.includes(status as (typeof allowed)[number])) {
+    redirect("/admin/product-requests?error=invalid_status");
+  }
+
+  const { error } = await supabase
+    .from("product_reservation_requests")
+    .update({
+      status,
+      notes: notes || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    redirect(`/admin/product-requests?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/product-requests");
+  redirect("/admin/product-requests?success=request_updated");
+}
+
+export async function updateCustomerProfile(formData: FormData) {
+  const { supabase, profile: actor } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const fullName = String(formData.get("full_name") || "").trim();
+  const interestsRaw = String(formData.get("interests") || "").trim();
+  const interests = interestsRaw
+    ? interestsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  const newsletterOptIn = String(formData.get("newsletter_opt_in") || "") === "true";
+  const marketingConsent = String(formData.get("marketing_consent") || "") === "true";
+
+  const payload: Record<string, unknown> = {
+    full_name: fullName || null,
+    newsletter_opt_in: newsletterOptIn,
+    marketing_consent: marketingConsent,
+    interests,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (userMeetsRole(actor?.role, "admin")) {
+    const role = String(formData.get("role") || "").trim();
+    if (role === "customer" || role === "staff" || role === "admin") {
+      payload.role = role;
+    }
+  }
+
+  const { error } = await supabase.from("profiles").update(payload).eq("id", id);
+
+  if (error) {
+    redirect(`/admin/crm/${id}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath(`/admin/crm/${id}`);
+  revalidatePath("/admin/crm");
+  redirect(`/admin/crm/${id}?success=profile_updated`);
+}
