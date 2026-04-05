@@ -1,21 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
-import { PublicShell } from "@/components/public-shell";
 import { notFound } from "next/navigation";
 
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { eventCardImageUrl } from "@/lib/design/media";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, getEventBySlug, getUserRegistrations } from "@/lib/gamestore/data";
-import { MapPin } from "lucide-react";
 import { bookEvent, cancelEventBooking } from "../actions";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const event = await getEventBySlug(supabase, slug);
+  if (!event) return { title: "Evento" };
+
+  const description =
+    event.description?.replace(/\s+/g, " ").trim().slice(0, 155) ||
+    `${formatDateTime(event.starts_at)} — ${event.title}`;
+
+  return { title: event.title, description };
+}
 
 export default async function EventDetailPage({ params }: PageProps) {
   const { slug } = await params;

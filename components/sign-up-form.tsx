@@ -1,6 +1,12 @@
 "use client";
 
+import {
+  AuthTurnstile,
+  type AuthTurnstileHandle,
+  isTurnstileConfigured,
+} from "@/components/auth-turnstile";
 import { cn } from "@/lib/utils";
+import { getSiteUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,19 +19,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+const magicLinkCallbackUrl = () =>
+  `${getSiteUrl()}/auth/confirm?next=${encodeURIComponent("/protected")}`;
 
 export function SignUpForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [repeatPassword, setRepeatPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<AuthTurnstileHandle>(null);
+  const captchaRequired = isTurnstileConfigured();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,35 +42,62 @@ export function SignUpForm({
     setIsLoading(true);
     setError(null);
 
-    if (password !== repeatPassword) {
-      setError("Le password non corrispondono");
+    if (captchaRequired && !captchaToken) {
+      setError("Completa la verifica anti-bot.");
       setIsLoading(false);
       return;
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signInWithOtp({
         email,
-        password,
         options: {
-          emailRedirectTo: `${window.location.origin}/protected`,
+          emailRedirectTo: magicLinkCallbackUrl(),
+          shouldCreateUser: true,
+          ...(captchaToken ? { captchaToken } : {}),
         },
       });
       if (error) throw error;
-      router.push("/auth/sign-up-success");
+      setSent(true);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Si è verificato un errore");
+      turnstileRef.current?.reset();
+      setCaptchaToken(null);
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (sent) {
+    return (
+      <div className={cn("flex flex-col gap-6", className)} {...props}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Controlla la tua email</CardTitle>
+            <CardDescription>Un ultimo passaggio per attivare l&apos;account</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Abbiamo inviato un link a <span className="font-medium text-foreground">{email}</span>.
+              Cliccalo per confermare e accedere al Mana Nero.
+            </p>
+            <Button type="button" variant="outline" className="mt-2 w-full" onClick={() => setSent(false)}>
+              Usa un&apos;altra email
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Registrati</CardTitle>
-          <CardDescription>Crea un nuovo account</CardDescription>
+          <CardDescription>
+            Nessuna password: ti inviamo un link alla tua email per completare la registrazione.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp}>
@@ -75,35 +111,13 @@ export function SignUpForm({
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                 />
               </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="repeat-password">Ripeti password</Label>
-                </div>
-                <Input
-                  id="repeat-password"
-                  type="password"
-                  required
-                  value={repeatPassword}
-                  onChange={(e) => setRepeatPassword(e.target.value)}
-                />
-              </div>
+              <AuthTurnstile ref={turnstileRef} onTokenChange={setCaptchaToken} />
               {error && <p className="text-sm text-red-500">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creazione account..." : "Registrati"}
+                {isLoading ? "Invio in corso..." : "Inviami il link"}
               </Button>
             </div>
             <div className="mt-4 text-center text-sm">

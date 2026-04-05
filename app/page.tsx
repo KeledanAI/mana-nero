@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CategoryCard } from "@/components/category-card";
@@ -19,7 +20,26 @@ import { formatDateTime, getRecentPosts, getUpcomingEvents } from "@/lib/gamesto
 import { createClient } from "@/lib/supabase/server";
 import { CalendarDays, Clock, MapPin, Phone, Users } from "lucide-react";
 
-const categories = [
+export const metadata: Metadata = {
+  title: { absolute: "Mana Nero Fumetteria — Tradate" },
+  description:
+    "Fumetti, giochi di carte collezionabili, giochi da tavolo ed eventi. Il cuore ludico di Tradate.",
+};
+
+const categories: {
+  title: string;
+  description: string;
+  href?: string;
+  eyebrow?: string;
+  linkLabel?: string;
+}[] = [
+  {
+    title: "BeyBlade X",
+    description: "Arena Xtreme in fumetteria: burst, ranking e tornei dimostrativi — scopri il programma.",
+    href: "/community/beyblade-x",
+    eyebrow: "Torneo",
+    linkLabel: "Apri BeyBlade X",
+  },
   {
     title: "Magic: The Gathering",
     description: "Draft, commander, constructed e serate tornei per i giocatori più assidui.",
@@ -64,7 +84,7 @@ export default async function Home() {
             <div className="relative grid min-h-[38rem] content-end gap-10 p-8 sm:p-10 lg:grid-cols-[1.05fr_0.95fr] lg:content-center lg:p-14">
               <div className="max-w-3xl">
                 <Badge className="border-0 bg-white/10 px-4 py-1.5 text-white hover:bg-white/10">
-                  Fumetteria · Giochi · Community
+                  Fumetteria · Giochi · Tornei
                 </Badge>
                 <h1 className="mt-6 text-5xl font-semibold leading-[0.92] tracking-tight text-white sm:text-6xl lg:text-7xl">
                   Il tuo posto al tavolo ti aspetta.
@@ -250,7 +270,9 @@ export default async function Home() {
                 imageUrl={getCategoryImage(category.title)}
                 title={category.title}
                 description={category.description}
-                href="/community"
+                href={category.href ?? "/community"}
+                eyebrow={category.eyebrow}
+                linkLabel={category.linkLabel}
               />
             ))}
           </div>

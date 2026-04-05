@@ -5,11 +5,15 @@ export function CategoryCard({
   title,
   description,
   href,
+  eyebrow = "Categoria",
+  linkLabel = "Esplora",
 }: {
   imageUrl: string;
   title: string;
   description: string;
   href: string;
+  eyebrow?: string;
+  linkLabel?: string;
 }) {
   return (
     <article
@@ -22,11 +26,11 @@ export function CategoryCard({
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,208,111,0.16),transparent_45%)]" />
       <div className="relative flex h-full flex-col justify-end p-6">
-        <p className="text-xs uppercase tracking-[0.24em] text-white/45">Categoria</p>
+        <p className="text-xs uppercase tracking-[0.24em] text-white/45">{eyebrow}</p>
         <h3 className="mt-3 text-2xl font-semibold text-white">{title}</h3>
         <p className="mt-3 max-w-sm text-sm leading-7 text-white/62">{description}</p>
         <Link href={href} className="mt-5 inline-flex text-sm font-medium text-amber-300 hover:text-amber-200">
-          Esplora
+          {linkLabel}
         </Link>
       </div>
     </article>

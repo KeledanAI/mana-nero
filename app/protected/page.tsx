@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,6 +44,11 @@ type ProtectedPageProps = {
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
+
+export const metadata: Metadata = {
+  title: "Il tuo account",
+  description: "Prenotazioni eventi, richieste prodotto e preferenze del tuo account Mana Nero.",
+};
 
 export default async function ProtectedPage({ searchParams }: ProtectedPageProps) {
   const query = (await searchParams) ?? {};

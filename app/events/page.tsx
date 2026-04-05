@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -12,6 +13,12 @@ import { eventCardImageUrl } from "@/lib/design/media";
 import { formatDateTime, formatRegistrationStatus, getPublishedEvents, getUserRegistrations } from "@/lib/gamestore/data";
 import { createClient } from "@/lib/supabase/server";
 import { bookEvent, cancelEventBooking } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Eventi",
+  description:
+    "Tornei, serate demo e gioco libero al Mana Nero di Tradate. Trova il tuo evento e prenota.",
+};
 
 export default async function EventsPage() {
   const supabase = await createClient();

@@ -1,3 +1,4 @@
+import beybladeArenaHero from "@/images/beyblade-arena-hero.webp";
 import heroManaNeroTradate from "@/images/hero-mana-nero-tradate.jpg";
 
 import { cmsStoragePublicUrl } from "@/lib/supabase/cms-storage";
@@ -29,6 +30,7 @@ export const siteMedia = {
       "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=1200&q=80",
     miniatures:
       "https://images.unsplash.com/photo-1560179406-1c6c60e0dc76?auto=format&fit=crop&w=1200&q=80",
+    beyblade: beybladeArenaHero.src,
   },
 } as const;
 
@@ -80,5 +82,6 @@ export function getCategoryImage(name: string) {
   if (value.includes("pokemon")) return siteMedia.categories.pokemon;
   if (value.includes("one piece")) return siteMedia.categories.onePiece;
   if (value.includes("board")) return siteMedia.categories.boardGames;
+  if (value.includes("beyblade")) return siteMedia.categories.beyblade;
   return siteMedia.categories.miniatures;
 }

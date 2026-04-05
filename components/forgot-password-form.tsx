@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,96 +9,39 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useState } from "react";
 
+/**
+ * Password reset via email is not used with magic-link auth.
+ * Kept route for old bookmarks; points users to the OTP login flow.
+ */
 export function ForgotPasswordForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const supabase = createClient();
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
-      });
-      if (error) throw error;
-      setSuccess(true);
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Si è verificato un errore");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      {success ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Controlla la tua email</CardTitle>
-            <CardDescription>Istruzioni per il reset inviate</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Se ti sei registrato con email e password, riceverai un&apos;email
-              con le istruzioni per reimpostare la password.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Reimposta la password</CardTitle>
-            <CardDescription>
-              Inserisci la tua email e ti invieremo un link per reimpostare
-              la password
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleForgotPassword}>
-              <div className="flex flex-col gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Invio in corso..." : "Invia email di reset"}
-                </Button>
-              </div>
-              <div className="mt-4 text-center text-sm">
-                Hai già un account?{" "}
-                <Link
-                  href="/auth/login"
-                  className="underline underline-offset-4"
-                >
-                  Accedi
-                </Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Accesso senza password</CardTitle>
+          <CardDescription>Il Mana Nero usa un link inviato via email</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <p>
+            Non gestiamo più il reset password classico: per entrare usa la pagina{" "}
+            <strong className="text-foreground">Accedi</strong> e richiedi un nuovo link
+            magico alla tua email.
+          </p>
+          <Button asChild className="w-full">
+            <Link href="/auth/login">Vai ad Accedi</Link>
+          </Button>
+          <div className="text-center text-sm">
+            <Link href="/auth/sign-up" className="underline underline-offset-4">
+              Non hai un account? Registrati
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

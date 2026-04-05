@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
+
 import { UpdatePasswordForm } from "@/components/update-password-form";
+
+export const metadata: Metadata = {
+  title: "Aggiorna password",
+  description: "Imposta una nuova password per il tuo account Mana Nero.",
+};
 
 export default function Page() {
   return (

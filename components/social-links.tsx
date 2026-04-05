@@ -1,6 +1,20 @@
+import Image from "next/image";
+import type { StaticImageData } from "next/image";
+import type { ReactNode } from "react";
+
+import cardmarketLogo from "@/images/logo-cardmarket.png";
 import { cn } from "@/lib/utils";
 
-const socials = [
+type SocialItem = {
+  label: string;
+  href: string;
+  icon?: ReactNode;
+  logo?: StaticImageData;
+  /** Logo display size in px (smaller than default h-5 icons) */
+  logoSize?: number;
+};
+
+const socials: SocialItem[] = [
   {
     label: "Facebook",
     href: "https://www.facebook.com/p/Mana-Nero-Fumetteria-61557209872088/",
@@ -31,13 +45,26 @@ const socials = [
   {
     label: "Cardmarket",
     href: "https://www.cardmarket.com/it/YuGiOh/Users/ManaNeroFumetteria",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-        <path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3zm4.5 2a.75.75 0 0 0-.75.75v1.5c0 .414.336.75.75.75h2.25v4.25a.75.75 0 0 0 .75.75h1.5a.75.75 0 0 0 .75-.75V11h2.25a.75.75 0 0 0 .75-.75v-1.5a.75.75 0 0 0-.75-.75z" />
-      </svg>
-    ),
+    logo: cardmarketLogo,
+    logoSize: 18,
   },
 ];
+
+function SocialGlyph({ item }: { item: SocialItem }) {
+  const size = item.logoSize ?? 20;
+  if (item.logo) {
+    return (
+      <Image
+        src={item.logo}
+        alt=""
+        width={size}
+        height={size}
+        className="object-contain brightness-[1.85] contrast-[1.05]"
+      />
+    );
+  }
+  return <>{item.icon}</>;
+}
 
 export function SocialLinks({
   size = "default",
@@ -60,7 +87,7 @@ export function SocialLinks({
             size === "lg" ? "h-11 w-11" : "h-9 w-9",
           )}
         >
-          {social.icon}
+          <SocialGlyph item={social} />
         </a>
       ))}
     </div>
@@ -79,7 +106,7 @@ export function SocialLinksLabeled({ className }: { className?: string }) {
           className="flex items-center gap-3 text-sm text-white/60 transition hover:text-white"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5">
-            {social.icon}
+            <SocialGlyph item={social} />
           </span>
           {social.label}
         </a>

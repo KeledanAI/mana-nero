@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
+
 import { PublicShell } from "@/components/public-shell";
 import { SectionHeading } from "@/components/section-heading";
 import { SocialLinksLabeled } from "@/components/social-links";
 import { siteMedia } from "@/lib/design/media";
+
+export const metadata: Metadata = {
+  title: "Contatti",
+  description:
+    "Dove siamo, orari e contatti del Mana Nero Fumetteria a Tradate. Vieni a trovarci!",
+};
 
 export default function ContactPage() {
   return (

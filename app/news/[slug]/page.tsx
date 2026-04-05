@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/breadcrumb";
 
@@ -8,6 +9,18 @@ import { formatDateTime, getPostBySlug } from "@/lib/gamestore/data";
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const post = await getPostBySlug(supabase, slug);
+  if (!post) return { title: "News" };
+
+  const description =
+    post.body?.replace(/\s+/g, " ").trim().slice(0, 155) || post.title;
+
+  return { title: post.title, description };
+}
 
 export default async function NewsDetailPage({ params }: PageProps) {
   const { slug } = await params;

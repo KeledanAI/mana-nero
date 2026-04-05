@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export const navLinks = [
   { href: "/events", label: "Eventi" },
   { href: "/news", label: "News" },
-  { href: "/community", label: "Community" },
+  { href: "/community", label: "Giochi e Tornei" },
   { href: "/reserve", label: "Richieste" },
   { href: "/protected", label: "Account" },
 ];

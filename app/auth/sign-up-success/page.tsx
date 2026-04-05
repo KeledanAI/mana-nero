@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   Card,
   CardContent,
@@ -5,6 +6,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+export const metadata: Metadata = {
+  title: "Controlla la email",
+  description: "Conferma l'indirizzo email per attivare il tuo account Mana Nero.",
+};
 
 export default function Page() {
   return (

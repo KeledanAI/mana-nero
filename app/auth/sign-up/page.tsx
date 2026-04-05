@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
+
 import { SignUpForm } from "@/components/sign-up-form";
+
+export const metadata: Metadata = {
+  title: "Registrati",
+  description:
+    "Registrati al Mana Nero con conferma via link email (senza password).",
+};
 
 export default function Page() {
   return (

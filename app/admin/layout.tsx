@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AdminNav } from "@/components/admin-nav";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  description: "Pannello di gestione contenuti ed eventi — Mana Nero.",
+};
 
 export default async function AdminLayout({
   children,

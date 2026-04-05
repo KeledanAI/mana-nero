@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Suspense } from "react";
+
+export const metadata: Metadata = {
+  title: "Errore di accesso",
+  description: "Si è verificato un problema durante l'autenticazione.",
+};
 
 async function ErrorContent({
   searchParams,

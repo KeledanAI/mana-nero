@@ -9,7 +9,10 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Mana Nero Fumetteria — Tradate",
+  title: {
+    default: "Mana Nero Fumetteria — Tradate",
+    template: "%s · Mana Nero Fumetteria",
+  },
   description:
     "Fumetti, giochi di carte collezionabili, giochi da tavolo ed eventi. Il cuore ludico di Tradate.",
 };

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { SearchParamsToast } from "@/components/search-params-toast";
@@ -9,6 +10,12 @@ import { formatProductRequestStatus, getUserProductRequests } from "@/lib/gamest
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { createProductRequest } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Richiesta prodotto",
+  description:
+    "Chiedi al Mana Nero di ordinare un prodotto: compila la richiesta e ricevi aggiornamenti sulla disponibilità.",
+};
 
 export default async function ReservePage() {
   const supabase = await createClient();
