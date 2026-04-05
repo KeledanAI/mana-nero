@@ -23,6 +23,11 @@ const links = [
     match: (p: string) => p.startsWith("/admin/posts"),
   },
   {
+    href: "/admin/game-pages",
+    label: "Pagine gioco",
+    match: (p: string) => p.startsWith("/admin/game-pages"),
+  },
+  {
     href: "/admin/product-requests",
     label: "Richieste prodotto",
     match: (p: string) => p.startsWith("/admin/product-requests"),

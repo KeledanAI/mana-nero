@@ -34,6 +34,15 @@ export const siteMedia = {
   },
 } as const;
 
+/** Hero pagine gioco: path bucket CMS oppure `/public/...` */
+export function gamePageHeroUrl(path: string | null | undefined): string {
+  const raw = (path ?? "").trim();
+  if (raw.startsWith("/")) return raw;
+  const fromBucket = cmsStoragePublicUrl(raw);
+  if (fromBucket) return fromBucket;
+  return siteMedia.hero;
+}
+
 export function getEventImage(slug: string, index = 0) {
   if (slug.includes("magic")) return siteMedia.categories.magic;
   if (slug.includes("pokemon")) return siteMedia.categories.pokemon;

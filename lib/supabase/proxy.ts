@@ -57,6 +57,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/news") ||
     path.startsWith("/contact") ||
     path.startsWith("/community") ||
+    path.startsWith("/giochi") ||
     path.startsWith("/reserve");
 
   if (!isPublicPath && !user) {

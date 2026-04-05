@@ -41,7 +41,7 @@ function validateUploadImage(file: File) {
 
 async function uploadCmsImage(
   supabase: Awaited<ReturnType<typeof requireUserWithRole>>["supabase"],
-  entity: "events" | "posts",
+  entity: "events" | "posts" | "game-pages",
   entityKey: string,
   file: File,
 ) {
@@ -314,6 +314,62 @@ export async function updateProductRequestStatus(formData: FormData) {
 
   revalidatePath("/admin/product-requests");
   redirect("/admin/product-requests?success=request_updated");
+}
+
+export async function saveGamePage(formData: FormData) {
+  const { supabase } = await requireUserWithRole("staff");
+  const id = String(formData.get("id") || "").trim();
+  const slug = String(formData.get("slug") || "").trim();
+  const displayName = String(formData.get("display_name") || "").trim();
+  const eyebrow = String(formData.get("eyebrow") || "").trim();
+  const heroTitle = String(formData.get("hero_title") || "").trim();
+  const intro = String(formData.get("intro") || "").trim();
+  const body = String(formData.get("body") || "").trim();
+  const status = String(formData.get("status") || "draft").trim();
+  const sortOrderRaw = String(formData.get("sort_order") || "0").trim();
+  const coverImagePathInput = String(formData.get("hero_image_path") || "").trim();
+  const coverImageFile = formData.get("cover_image");
+  const sortOrder = Number.parseInt(sortOrderRaw, 10);
+
+  if (!id) {
+    redirect(`/admin/game-pages?error=${encodeURIComponent("id_required")}`);
+  }
+
+  const pageKey = slug || id;
+  let uploadedCoverPath: string | null = null;
+  if (coverImageFile instanceof File && coverImageFile.size > 0) {
+    try {
+      uploadedCoverPath = await uploadCmsImage(supabase, "game-pages", pageKey, coverImageFile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "upload_failed";
+      redirect(`/admin/game-pages?error=${encodeURIComponent(message)}`);
+    }
+  }
+
+  const payload = {
+    display_name: displayName,
+    eyebrow: eyebrow || null,
+    hero_title: heroTitle,
+    intro: intro || null,
+    body: body || null,
+    hero_image_path: uploadedCoverPath || coverImagePathInput || null,
+    status,
+    sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from("game_pages").update(payload).eq("id", id);
+
+  if (error) {
+    redirect(`/admin/game-pages?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/game-pages");
+  revalidatePath("/giochi");
+  revalidatePath(`/giochi/${slug}`);
+  revalidatePath("/community");
+  revalidatePath("/");
+  redirect("/admin/game-pages?success=game_page_saved");
 }
 
 export async function updateCustomerProfile(formData: FormData) {

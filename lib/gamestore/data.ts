@@ -433,6 +433,63 @@ export async function getRegistrationsForProfileStaff(
   }));
 }
 
+export type GamePageRow = {
+  id: string;
+  slug: string;
+  display_name: string;
+  eyebrow: string | null;
+  hero_title: string;
+  intro: string | null;
+  body: string | null;
+  hero_image_path: string | null;
+  status: string;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type GamePageHubRow = {
+  slug: string;
+  display_name: string;
+  eyebrow: string | null;
+  intro: string | null;
+  hero_image_path: string | null;
+  sort_order: number;
+};
+
+export async function getPublishedGamePageSummaries(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("game_pages")
+    .select("slug, display_name, eyebrow, intro, hero_image_path, sort_order")
+    .eq("status", "published")
+    .order("sort_order", { ascending: true });
+
+  if (error) return [];
+  return (data ?? []) as GamePageHubRow[];
+}
+
+export async function getPublishedGamePageBySlug(supabase: SupabaseClient, slug: string) {
+  const { data, error } = await supabase
+    .from("game_pages")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as GamePageRow;
+}
+
+export async function listAllGamePagesAdmin(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("game_pages")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) return [];
+  return (data ?? []) as GamePageRow[];
+}
+
 export function formatCurrencyLabel(value: number | null) {
   if (value == null) return null;
   return new Intl.NumberFormat("it-IT", {
