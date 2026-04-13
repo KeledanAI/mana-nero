@@ -34,7 +34,7 @@ todos:
     status: completed
   - id: v2-event-payments
     content: "V2 (PRD §4.1): pagamenti/depositi evento, stati registration additivi"
-    status: pending
+    status: in_progress
   - id: v2-comms-automation
     content: "V2 (PRD §4.3): reminder, campagne, notifiche waitlist oltre outbox email base"
     status: pending
@@ -193,7 +193,7 @@ flowchart LR
 | Dominio `lib/domain/booking.ts`, `lib/comms/enqueue.ts`, worker batch `lib/comms/process-outbox.ts` | Implementate |
 | Route cron worker | `GET /api/cron/outbox` con `Authorization: Bearer` + `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) |
 | UI pubblica, `/protected`, `/admin`, CSV partecipanti | Implementate |
-| Enum `pending_payment` / altre estensioni additive | Non in V1 (solo quando servirà una migrazione) |
+| Enum `pending_payment` / altre estensioni additive | Valore `pending_payment` aggiunto in migrazione dedicata; branch RPC e pagamenti in corso (`v2-event-payments` **in_progress**) |
 | Test automatici | `npm run test` (unit); `npm run smoke:test` (RPC remoto); `npm run test:e2e` (Playwright: home, eventi, news, giochi, contatti, reserve, community; prima volta `npx playwright install chromium`); con `E2E_STORAGE_STATE` anche [e2e/auth-events.spec.ts](e2e/auth-events.spec.ts); CI GitHub [`.github/workflows/ci.yml`](.github/workflows/ci.yml) su push/PR (`lint`, `test`, `build`) |
 
 **Gap operativo:** le migrazioni vanno applicate al **progetto Supabase remoto** usato da `.env.local` (CLI `supabase db push` o SQL editor). Il codice nel repo non sostituisce questo passo.
@@ -221,7 +221,7 @@ Usala dopo il primo deploy o ad ogni cambio di dominio / chiavi.
 - [ ] **Post-deploy manuale:** apri sito pubblico, `/events`, login magic link reale; da staff `/admin` e un evento; oppure `npm run verify:supabase` / `npm run smoke:test` contro l’URL Supabase di produzione solo se usi variabili che puntano a quel progetto.
 - [ ] **CI:** su ogni PR verifica che il workflow **CI** su GitHub sia verde (lint, unit test, build con env placeholder); in locale esegui `npm run ci` prima del push.
 
-**Esecuzione guidata:** runbook passo-passo in [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md). Con un file `.env.local` (o `DEPLOY_ENV_FILE`) che riflette le variabili di produzione: `npm run verify:deploy` (controllo strict) e poi `npm run verify:supabase` / `npm run smoke:test`.
+**Esecuzione guidata:** runbook passo-passo in [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md); checklist spuntabile [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md). Con env verso l’istanza da validare: `npm run verify:release-stack` (REST + smoke RPC); per controllo strict tipo produzione: `npm run verify:deploy`.
 
 ---
 

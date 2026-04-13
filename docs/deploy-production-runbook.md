@@ -52,12 +52,13 @@ Con un file env che riflette la produzione (es. `.env.local` temporaneo con valo
 npm run verify:deploy
 ```
 
-Poi:
+Catena REST + smoke RPC (stesso target Supabase dell’env):
 
 ```bash
-npm run verify:supabase
-npm run smoke:test
+npm run verify:release-stack
 ```
+
+Equivale a `verify:supabase` poi `smoke:test`. Lista spuntabile lato dashboard: [deploy-operator-checklist.md](./deploy-operator-checklist.md).
 
 ## 6. Post-deploy manuale (UI)
 

@@ -28,7 +28,7 @@ export type EventDetailRow = EventRow & {
 export type EventRegistrationRow = {
   id: string;
   event_id: string;
-  status: "confirmed" | "waitlisted" | "cancelled" | "checked_in";
+  status: "confirmed" | "waitlisted" | "cancelled" | "checked_in" | "pending_payment";
   waitlist_position: number | null;
   created_at: string;
   events:
@@ -204,7 +204,7 @@ export async function getUserRegistrations(
     .from("event_registrations")
     .select("id, event_id, status, waitlist_position, created_at, events(title, slug, starts_at)")
     .eq("user_id", userId)
-    .in("status", ["confirmed", "waitlisted", "checked_in"])
+    .in("status", ["confirmed", "waitlisted", "checked_in", "pending_payment"])
     .order("created_at", { ascending: false });
 
   if (error) return [];
@@ -503,6 +503,7 @@ const registrationStatusLabels: Record<string, string> = {
   waitlisted: "Lista d'attesa",
   cancelled: "Annullato",
   checked_in: "Check-in effettuato",
+  pending_payment: "In attesa di pagamento",
 };
 
 export function formatRegistrationStatus(

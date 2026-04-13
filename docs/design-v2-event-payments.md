@@ -21,7 +21,7 @@ Introdurre **pagamenti / depositi** per eventi e stati di registrazione additivi
 - **`event_registrations`:** nullable per riferimento pagamento esterno (`payment_intent_id`, `paid_at`, importi) con vincolo “se `pending_payment` allora …” a livello RPC/constraint, non in client.
 - **Enum:** `ALTER TYPE ... ADD VALUE` per `pending_payment` (e futuri stati) in migrazione dedicata; aggiornare tipi TypeScript generati o mapping manuale in `lib/domain`.
 
-## 4. Flussi pagamento (da decidere prima del codice)
+## 4. Flussi pagamento — decisioni sprint 1 (bozza repo)
 
 ```mermaid
 sequenceDiagram
@@ -41,15 +41,21 @@ sequenceDiagram
   RPC->>DB: confirmed o waitlisted
 ```
 
-**Opzione A (consigliata per chiarezza):** Stripe (o analogo) Checkout + webhook su Route Handler Next che, dopo verifica firma, chiama `supabase.rpc('event_registration_action', { p_operation: 'confirm_payment', ... })` con idempotenza lato RPC (stesso utente/evento).
+| Decisione | Scelta (sprint 1) |
+|-----------|-------------------|
+| Provider / modello | **Opzione A:** Stripe Checkout (o equivalente) + webhook Next verificato; nessun bypass staff per il happy path. Opzione B resta fallback documentato per eventi senza integrazione. |
+| Deposito vs intero | Stesso flusso: `events.deposit_cents` vs `events.price_cents` distingue importo sessione; RPC e provider ricevono importo calcolato lato server. |
+| Scadenza pagamento | Timeout tramite **cron esistente** (o job dedicato minimo) che invoca la RPC con operazione `expire_payment` (o `cancel` branch dedicato) — niente cancellazione solo da client. |
 
-**Opzione B:** Pagamento completamente esterno (link manuale); staff marca pagato — minore automazione, stessa RPC con operazione staff-only se coerente con RLS (verificare che sia solo `has_role('staff')` via RPC security).
+L’enum `registration_status` include già il valore additivo `pending_payment` (migrazione `20260413180000_registration_status_pending_payment.sql`); i branch RPC e le colonne su `event_registrations` (es. `payment_intent_id`) sono **step successivi** in PR dedicate.
 
-Decisioni da chiudere in review:
+## 4.1 Operazioni RPC additive (nomi per commento SQL / contratto)
 
-- Provider unico per V2 prima iterazione?
-- Deposito vs prezzo intero: stesso flusso con flag su `events`?
-- Scadenza pagamento: timeout che torna a `cancelled` solo via RPC schedulata o job?
+Da aggiungere come branch nella **stessa** `event_registration_action` (firma estesa con parametri opzionali), documentati in testo sopra la funzione in migrazione:
+
+- `confirm_payment` — webhook/stripe: idempotente su coppia `(event_id, user_id)` o `registration_id`.
+- `expire_payment` — cron: transizione da `pending_payment` a `cancelled` (o politica definita in review tecnica).
+- Eventuale `staff_mark_paid` — solo se serve Opzione B; gated `has_role('staff')` dentro la RPC, mai da client diretto su tabella.
 
 ## 5. UI / UX
 
@@ -69,9 +75,9 @@ Decisioni da chiudere in review:
 
 ## 8. Checklist pre-implementazione
 
-- [ ] Provider e modello (A vs B) approvati.
-- [ ] Lista operazioni RPC additive nominata e documentata in commento SQL.
-- [ ] Migrazione enum + colonne revisionata (nessuna DROP di valori enum esistenti).
-- [ ] Wireframe minimo stati utente/staff accettato.
+- [x] Provider e modello (A vs B) approvati — **A** come default sprint 1 (tabella §4).
+- [x] Lista operazioni RPC additive nominata — §4.1 (`confirm_payment`, `expire_payment`, opz. `staff_mark_paid`).
+- [x] Migrazione enum additiva — applicata in repo (`pending_payment`); colonne pagamento su `event_registrations` in PR successiva.
+- [x] Wireframe minimo — testi stato in UI: etichetta `pending_payment` in [`lib/gamestore/data.ts`](../lib/gamestore/data.ts) (`formatRegistrationStatus`); CTA pagamento e schermate staff in PR dedicate.
 
-Quando la checklist è completata, aggiornare il todo YAML `v2-event-payments` nel frontmatter di `ROADMAP.md` (es. `in_progress`) e aprire PR con migrazione + dominio + UI in commit separati se possibile (migrazione prima).
+Il todo YAML `v2-event-payments` in [ROADMAP.md](../ROADMAP.md) è **`in_progress`**. Prossime PR consigliate: (1) estensione `event_registration_action` + tipi dominio; (2) Stripe webhook + env; (3) UI `/events` e admin.

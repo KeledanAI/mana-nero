@@ -12,6 +12,7 @@
     "verify:supabase": "node scripts/check-supabase-env.mjs",
     "verify:deploy": "node scripts/check-production-env.mjs --production",
     "smoke:test": "node scripts/smoke-test-booking.mjs",
+    "verify:release-stack": "npm run verify:supabase && npm run smoke:test",
     "lint": "eslint .",
     "supabase:apply-email-templates": "node scripts/apply-supabase-auth-email-templates.mjs",
     "email:test": "tsx --tsconfig tsconfig.json scripts/send-test-email.ts"
