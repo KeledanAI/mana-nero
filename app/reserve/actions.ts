@@ -12,6 +12,7 @@ export async function createProductRequest(formData: FormData) {
   const notes = String(formData.get("notes") || "").trim();
   const quantityRaw = String(formData.get("quantity") || "").trim();
   const desiredPriceRaw = String(formData.get("desired_price") || "").trim();
+  const priorityFlag = formData.get("priority_flag") === "on";
 
   if (!productName) {
     redirect("/reserve?error=product_name_required");
@@ -34,6 +35,7 @@ export async function createProductRequest(formData: FormData) {
       notes: notes || null,
       quantity: quantityRaw ? Number.parseInt(quantityRaw, 10) : null,
       desiredPrice: desiredPriceRaw ? Number.parseFloat(desiredPriceRaw) : null,
+      priorityFlag,
     });
   } catch (error) {
     errorMessage =

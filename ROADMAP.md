@@ -4,27 +4,42 @@ overview: Bootstrap con template Vercel+Supabase; schema con ruolo singolo su pr
 todos:
   - id: bootstrap-starter
     content: Spostare PRD/file se necessario; create-next-app --example with-supabase; package name lowercase; ripristinare docs; .env.local
-    status: pending
+    status: completed
   - id: audit-starter
     content: Mappare middleware e lib/supabase; helper app has_role(profile.role) allineato a SQL
-    status: pending
+    status: completed
   - id: sql-schema-rls
     content: "Migrazioni: app_role su profiles, has_role(), event_categories/events+slug, event_registrations+enum+partial unique, posts+slug, newsletter, admin_notes, product_requests+future cols, outbox idempotente; RLS solo con has_role"
-    status: pending
+    status: completed
   - id: domain-booking
     content: "Una sola RPC SECURITY DEFINER (operazioni enum interne); app chiama solo rpc; lib/domain/booking wrapper tipizzato"
-    status: pending
+    status: completed
   - id: public-user-features
     content: Pagine pubbliche e area utente; server actions sottili → dominio/RPC
-    status: pending
+    status: completed
   - id: admin-crm-cms
     content: CRUD staff/admin; CSV; check-in via RPC o update consentito da RLS staff
-    status: pending
+    status: completed
   - id: product-reservation
     content: Insert con status; campi opzionali quantity, desired_price, priority_flag
-    status: pending
+    status: completed
   - id: comms-extension
     content: Outbox con idempotency_key UNIQUE; stati retry-safe; adapter enqueue senza dispatch obbligatorio
+    status: completed
+  - id: verify-remote-db
+    content: Applicare migrazioni al progetto Supabase remoto; npm run verify:supabase; smoke test manuale (vedi sotto)
+    status: completed
+  - id: quality-tests-v2
+    content: Estendere test automatici (integrazione DB, E2E) oltre i test unitari minimi in lib/**/*.test.ts
+    status: completed
+  - id: v2-event-payments
+    content: "V2 (PRD §4.1): pagamenti/depositi evento, stati registration additivi"
+    status: pending
+  - id: v2-comms-automation
+    content: "V2 (PRD §4.3): reminder, campagne, notifiche waitlist oltre outbox email base"
+    status: pending
+  - id: v2-product-preorders
+    content: "V2 (PRD §4.4): preordini strutturati, stock alerts (estende product_requests)"
     status: pending
 ---
 
@@ -82,7 +97,7 @@ Ogni decisione deve superare il test: **«Funzionerà in V2/V3 solo con estensio
 
 ## Step 1 — Ispezione architettura
 
-Mappare middleware e `lib/supabase/*`. Aggiungere solo helper lato app es. **`userHasAtLeastRole(role)`** che legge `profiles.role` e rispecchia la gerarchia di `has_role` in SQL.
+Mappare il refresh sessione (nel repo: `proxy.ts` + `lib/supabase/proxy.ts`, equivalente funzionale al middleware dello starter) e `lib/supabase/*`. Helper lato app: **`userMeetsRole`** in `lib/auth/roles.ts` allineato a `has_role` in SQL.
 
 ## Step 2 — Modello dati
 
@@ -140,7 +155,7 @@ flowchart LR
   end
   subgraph auth [Starter Auth]
     SUP[Supabase Auth]
-    MW[Middleware cookies]
+    PRX[Proxy session cookies]
   end
   subgraph user [Logged in]
     PROF[Profile role]
@@ -160,9 +175,95 @@ flowchart LR
   user --> RPC
   RPC --> OBX
   admin --> HR
-  MW --> SUP
+  PRX --> SUP
 ```
 
 ## Rischio noto
 
 - Directory non vuota e **npm name**: usare nome package lowercase dopo lo scaffold.
+
+---
+
+## Stato implementazione (codice vs piano V1)
+
+| Area | Stato |
+|------|--------|
+| Migrazioni SQL V1 (`supabase/migrations/20260404170000_gamestore_v1.sql` e successive) | Implementate nel repo |
+| RPC unica `event_registration_action`, RLS via `has_role`, outbox idempotente | Implementate |
+| Dominio `lib/domain/booking.ts`, `lib/comms/enqueue.ts`, worker batch `lib/comms/process-outbox.ts` | Implementate |
+| Route cron worker | `GET /api/cron/outbox` con `Authorization: Bearer` + `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) |
+| UI pubblica, `/protected`, `/admin`, CSV partecipanti | Implementate |
+| Enum `pending_payment` / altre estensioni additive | Non in V1 (solo quando servirà una migrazione) |
+| Test automatici | `npm run test` (unit); `npm run smoke:test` (RPC remoto); `npm run test:e2e` (Playwright: home, eventi, news, giochi, contatti, reserve, community; prima volta `npx playwright install chromium`); con `E2E_STORAGE_STATE` anche [e2e/auth-events.spec.ts](e2e/auth-events.spec.ts); CI GitHub [`.github/workflows/ci.yml`](.github/workflows/ci.yml) su push/PR (`lint`, `test`, `build`) |
+
+**Gap operativo:** le migrazioni vanno applicate al **progetto Supabase remoto** usato da `.env.local` (CLI `supabase db push` o SQL editor). Il codice nel repo non sostituisce questo passo.
+
+---
+
+## Deploy database e smoke test
+
+1. **Variabili:** copia [.env.example](.env.example) in `.env.local` e imposta almeno `NEXT_PUBLIC_SUPABASE_URL`, chiave anon/publishable, `NEXT_PUBLIC_SITE_URL` per redirect coerenti.
+2. **Migrazioni:** applica in ordine i file in `supabase/migrations/` al progetto collegato (documentazione Supabase: *Database migrations*).
+3. **Controllo rapido:** dalla root esegui `npm run verify:supabase` — verifica raggiungibilità REST e presenza tabella `events`.
+4. **Smoke test (automatico o manuale):**
+   - **Automatico:** con `SUPABASE_SERVICE_ROLE_KEY` + URL/anon in `.env.local`, esegui `npm run smoke:test`. Senza `SMOKE_TEST_EMAIL` / `SMOKE_TEST_PASSWORD` viene creato ed eliminato un utente effimero; altrimenti si riusa l’account indicato.
+   - **Manuale (UI):** registrazione / login (Turnstile se attivo); evento `published`; da `/events` prova `book` e `cancel`; promuovi un utente a `staff` (SQL o CRM); in `/admin/events/...` check-in e download CSV partecipanti.
+5. **Email da outbox:** configurare `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in produzione; per il worker impostare `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) — la route `GET /api/cron/outbox` accetta `Authorization: Bearer` con uno dei due. In deploy su Vercel è incluso [`vercel.json`](vercel.json) con cron ogni 15 minuti sul path del worker (allinea il secret nel progetto Vercel). Senza cron, le righe `email` restano in `pending` finché il worker non gira.
+
+### Checklist deploy produzione (Vercel / Supabase)
+
+Usala dopo il primo deploy o ad ogni cambio di dominio / chiavi.
+
+- [ ] **Vercel → Environment variables:** stessi nomi di [.env.example](.env.example) necessari al runtime (`NEXT_PUBLIC_*`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_*`, `OUTBOX_CRON_SECRET` o `CRON_SECRET`, ecc.).
+- [ ] **Supabase → Authentication → URL configuration:** Site URL e redirect consentiti puntano al dominio **produzione** (non `localhost`), in linea con `NEXT_PUBLIC_SITE_URL`.
+- [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox` risponda `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
+- [ ] **Migrazioni:** l’istanza Postgres collegata al progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente).
+- [ ] **Post-deploy manuale:** apri sito pubblico, `/events`, login magic link reale; da staff `/admin` e un evento; oppure `npm run verify:supabase` / `npm run smoke:test` contro l’URL Supabase di produzione solo se usi variabili che puntano a quel progetto.
+- [ ] **CI:** su ogni PR verifica che il workflow **CI** su GitHub sia verde (lint, unit test, build con env placeholder); in locale esegui `npm run ci` prima del push.
+
+---
+
+## Backlog V2 (da [PRD.md](PRD.md) sezione 4)
+
+Priorità suggerita: monetizzazione eventi e automazione comunicazioni prima del catalogo commerce (V3).
+
+| PRD | Tema | Todo YAML |
+|-----|------|-------------|
+| §4.1 | Pagamenti online, depositi, QR check-in, reminder | `v2-event-payments` |
+| §4.3 | Campagne, reminder, notifiche waitlist strutturate | `v2-comms-automation` |
+| §4.4 | Preordini, quantità, priorità, alert arrivo merce | `v2-product-preorders` |
+| §4.2 / §4.5 | CRM avanzato, analytics dashboard | da spezzare in todo quando si inizia |
+
+I todo `v2-*` nel frontmatter sono **pending** finché non si apre uno sprint V2; aggiorna `status` quando completi un incremento.
+
+**Primo incremento consigliato:** `v2-event-payments` (allinea DB additivo: colonne già presenti su `events` / `event_registrations` per pagamenti; nuovo stato enum solo con migrazione; **nessuna** seconda RPC booking: estensioni alla RPC esistente o flusso pagamento esterno + stato — da decidere in design review prima del codice).
+
+**Criteri di accettazione (bozza) per `v2-event-payments`:**
+
+- Migrazione **additiva** sola: nessuna rimozione di colonne/tabelle V1; enum `registration_status` esteso (es. `pending_payment`) con default invariato per righe esistenti.
+- **Un solo** entrypoint mutazione prenotazione lato DB: resta `event_registration_action` (nuovi branch o parametri opzionali), oppure pagamento orchestrato da provider esterno che aggiorna solo stato tramite quella RPC.
+- RLS invariata nella semantica: solo `has_role` per privilegi staff/admin; niente bypass env-based.
+- UI: stato “in attesa di pagamento” visibile a utente e staff; nessuna logica capacità nel client oltre a messaggi/CTA.
+- Test: estendere `npm run smoke:test` o script dedicato quando esistono operazioni RPC nuove verificabili senza carta reale (mock provider / flag test).
+
+**Criteri di accettazione (bozza) per `v2-comms-automation`:**
+
+- Nessun invio duplicato: riuso **outbox** con `idempotency_key` stabile per ogni tipo di messaggio (reminder, campagna, waitlist).
+- Worker o cron esistente esteso (stesso path o job dedicato) con canali aggiuntivi solo dove già previsti dall’enum `outbox_channel` o con migrazione enum **additiva**.
+- Staff non invia messaggi “a mano” bypassando outbox per flussi che devono essere tracciati; UI admin solo enqueue / template.
+- Metriche minime: conteggio `sent` / `failed` consultabile (SQL o vista) per debug.
+
+**Criteri di accettazione (bozza) per `v2-product-preorders`:**
+
+- Schema **additivo** su `product_reservation_requests` (o tabella figlia) senza rompere il form V1; stati espliciti se servono oltre l’enum attuale.
+- Priorità e quantità restano coerenti con RLS: utente vede le proprie richieste; staff vede tutto come oggi.
+- Nessun inventario “vero” in V2-lite: solo stati richiesta e notifiche (allineato PRD §4.4 prima del catalogo V3).
+
+### Osservabilità e operatività ricorrente
+
+Da tenere fuori dal codice ma dentro la routine del progetto:
+
+- **Log:** Vercel (runtime / cron) e Supabase (API, Auth, Postgres) per errori 5xx, timeout outbox, spike su `event_registration_action`.
+- **Segreti:** rotazione periodica di `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` / `OUTBOX_CRON_SECRET`, chiavi Resend; aggiornare env su Vercel e `.env.local` locale.
+- **Backup:** policy backup / PITR del progetto Supabase in linea con il rischio accettato.
+- **Locale vs CI:** prima di una PR esegui `npm run ci` (stesso ordine della [CI GitHub](.github/workflows/ci.yml): lint, test, build). Il build in CI usa URL Supabase placeholder; in locale `next build` usa `.env.local` se presente.

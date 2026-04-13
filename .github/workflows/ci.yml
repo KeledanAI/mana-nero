@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build non richiede Supabase reale se le variabili sono opzionali a build-time;
+          # Next può leggere env vuote: usa placeholder solo per far passare il compile.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-anon-key-for-ci-build-only

@@ -89,6 +89,18 @@ export default async function ReservePage() {
                 />
               </div>
 
+              <div className="flex items-center gap-2">
+                <input
+                  id="priority_flag"
+                  name="priority_flag"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border border-input"
+                />
+                <Label htmlFor="priority_flag" className="font-normal text-foreground/80">
+                  Segna come priorità (preordine / urgenza)
+                </Label>
+              </div>
+
               <SubmitButton className="w-fit" pendingLabel="Invio richiesta...">
                 Invia richiesta
               </SubmitButton>
@@ -116,6 +128,11 @@ export default async function ReservePage() {
                   </div>
                   <p className="mt-2 text-foreground/68">
                     {request.category || "Categoria libera"}
+                    {request.priority_flag ? (
+                      <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary">
+                        Priorità
+                      </span>
+                    ) : null}
                   </p>
                   {request.notes ? (
                     <p className="mt-2 text-foreground/68">{request.notes}</p>

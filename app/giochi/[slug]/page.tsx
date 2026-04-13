@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -41,10 +42,13 @@ export default async function GamePageDetail({ params }: PageProps) {
       <main>
         <div className="relative w-full overflow-hidden border-b border-white/10">
           <div className="relative h-[min(52vh,580px)] w-full min-h-[200px] sm:h-[min(48vh,640px)]">
-            <img
+            <Image
               src={heroUrl}
               alt={page.display_name}
-              className="absolute inset-0 h-full w-full object-cover object-center"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-center"
             />
           </div>
         </div>

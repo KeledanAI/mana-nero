@@ -1,15 +1,18 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type EnqueueMessage = {
+export type EnqueueMessage = {
   idempotencyKey: string;
   channel: "email" | "telegram" | "whatsapp" | "internal";
   payload: Record<string, unknown>;
   scheduledAt?: string;
 };
 
-export async function enqueueMessage(message: EnqueueMessage) {
-  const supabase = createAdminClient();
-
+export async function enqueueMessageWithClient(
+  supabase: SupabaseClient,
+  message: EnqueueMessage,
+) {
   const { error } = await supabase.from("communication_outbox").upsert(
     {
       idempotency_key: message.idempotencyKey,
@@ -27,4 +30,9 @@ export async function enqueueMessage(message: EnqueueMessage) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function enqueueMessage(message: EnqueueMessage) {
+  const supabase = createAdminClient();
+  await enqueueMessageWithClient(supabase, message);
 }

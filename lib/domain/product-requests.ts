@@ -7,6 +7,7 @@ type ProductRequestInput = {
   notes?: string | null;
   quantity?: number | null;
   desiredPrice?: number | null;
+  priorityFlag?: boolean;
 };
 
 export async function createProductRequestRecord(
@@ -20,6 +21,7 @@ export async function createProductRequestRecord(
     notes: input.notes ?? null,
     quantity: input.quantity ?? null,
     desired_price: input.desiredPrice ?? null,
+    priority_flag: input.priorityFlag ?? false,
   });
 
   if (error) {
