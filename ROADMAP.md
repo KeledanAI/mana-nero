@@ -221,6 +221,8 @@ Usala dopo il primo deploy o ad ogni cambio di dominio / chiavi.
 - [ ] **Post-deploy manuale:** apri sito pubblico, `/events`, login magic link reale; da staff `/admin` e un evento; oppure `npm run verify:supabase` / `npm run smoke:test` contro l’URL Supabase di produzione solo se usi variabili che puntano a quel progetto.
 - [ ] **CI:** su ogni PR verifica che il workflow **CI** su GitHub sia verde (lint, unit test, build con env placeholder); in locale esegui `npm run ci` prima del push.
 
+**Esecuzione guidata:** runbook passo-passo in [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md). Con un file `.env.local` (o `DEPLOY_ENV_FILE`) che riflette le variabili di produzione: `npm run verify:deploy` (controllo strict) e poi `npm run verify:supabase` / `npm run smoke:test`.
+
 ---
 
 ## Backlog V2 (da [PRD.md](PRD.md) sezione 4)
@@ -236,7 +238,7 @@ Priorità suggerita: monetizzazione eventi e automazione comunicazioni prima del
 
 I todo `v2-*` nel frontmatter sono **pending** finché non si apre uno sprint V2; aggiorna `status` quando completi un incremento.
 
-**Primo incremento consigliato:** `v2-event-payments` (allinea DB additivo: colonne già presenti su `events` / `event_registrations` per pagamenti; nuovo stato enum solo con migrazione; **nessuna** seconda RPC booking: estensioni alla RPC esistente o flusso pagamento esterno + stato — da decidere in design review prima del codice).
+**Primo incremento consigliato:** `v2-event-payments` (allinea DB additivo: colonne già presenti su `events` / `event_registrations` per pagamenti; nuovo stato enum solo con migrazione; **nessuna** seconda RPC booking: estensioni alla RPC esistente o flusso pagamento esterno + stato — da decidere in design review prima del codice). Bozza di design e checklist pre-codice: [docs/design-v2-event-payments.md](docs/design-v2-event-payments.md).
 
 **Criteri di accettazione (bozza) per `v2-event-payments`:**
 
