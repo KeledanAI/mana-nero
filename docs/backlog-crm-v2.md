@@ -26,7 +26,7 @@ Riferimenti: [PRD.md](../PRD.md), [ROADMAP.md](../ROADMAP.md) backlog V2. Questo
 - Filtri e ricerca (email, nome, telefono se aggiunto in schema).
 - Azioni sicure: tag, stato lead (se introdotto), collegamento a campagne future `comms_campaigns`.
 
-**Primo slice in repo:** nella [scheda CRM profilo](../app/admin/crm/%5BprofileId%5D/page.tsx) (`app/admin/crm/[profileId]/page.tsx`) la sezione **Timeline (Fase 2)** unifica in ordine cronologico note staff, iscrizioni evento, richieste prodotto, righe outbox email con `payload.user_id` = profilo, e righe `staff_crm_audit_log` con `entity_id` = profilo o iscrizioni del cliente (lettura via [`lib/gamestore/data.ts`](../lib/gamestore/data.ts)). In [`/admin/crm`](../app/admin/crm/page.tsx) sono disponibili **ricerca** (GET `?q=`, min. 2 caratteri su email/nome) e **filtri** (ruolo, newsletter opt-in, marketing consent). Scritture audit best-effort da [`lib/gamestore/crm-audit.ts`](../lib/gamestore/crm-audit.ts) su nota profilo, aggiornamento scheda cliente, aggiornamento richiesta prodotto, salvataggio/enqueue campagne, **check-in manuale iscrizione** e **revoca marketing** (azione dedicata in scheda profilo).
+**Primo slice in repo:** nella [scheda CRM profilo](../app/admin/crm/%5BprofileId%5D/page.tsx) (`app/admin/crm/[profileId]/page.tsx`) la sezione **Timeline (Fase 2)** unifica in ordine cronologico note staff, iscrizioni evento, richieste prodotto, righe outbox email con `payload.user_id` = profilo, e righe `staff_crm_audit_log` con `entity_id` = profilo o iscrizioni del cliente (lettura via [`lib/gamestore/data.ts`](../lib/gamestore/data.ts)). Titoli e dettagli leggibili (tipo messaggio, oggetto campagna, errori/skip, audit in italiano) tramite [`lib/gamestore/crm-timeline.ts`](../lib/gamestore/crm-timeline.ts). In [`/admin/crm`](../app/admin/crm/page.tsx): **ricerca** (GET `?q=`, min. 2 caratteri su email/nome/**telefono**) e **filtri** (ruolo, newsletter, marketing); link **Esporta CSV** → [`GET /admin/crm/profiles.csv`](../app/admin/crm/profiles.csv/route.ts) (tutti i profili visibili allo staff). Scritture audit da [`lib/gamestore/crm-audit.ts`](../lib/gamestore/crm-audit.ts) su nota, scheda cliente (incl. revoche outbox su consensi), richiesta prodotto, campagne, check-in manuale, revoche newsletter/marketing dedicate.
 
 ## Fase 3 — Analytics
 
@@ -34,12 +34,12 @@ Riferimenti: [PRD.md](../PRD.md), [ROADMAP.md](../ROADMAP.md) backlog V2. Questo
 - Dashboard `/admin/analytics` (o sezione in `/admin`) con grafici essenziali e intervalli data.
 - Allineamento privacy: nessun dato non necessario in chart pubblici.
 
-**Primo slice in repo:** pagina staff [`app/admin/analytics/page.tsx`](../app/admin/analytics/page.tsx) con conteggi ad alta livello (eventi per stato, registrazioni, outbox email in `pending`, richieste prodotto / `awaiting_stock`) — base per RPC e grafici successivi. RPC aggregata [`analytics_staff_summary`](../supabase/migrations/20260419120000_analytics_staff_summary_for_staff.sql) con filtro `p_since` e link intervallo (7/30/90 giorni o tutto); breakdown iscrizioni per stato con barre proporzionali; fallback legacy se la migrazione non è ancora applicata. Migrazione [`20260420140000_checkin_policy_analytics_campaign_waitlist_profile_stock.sql`](../supabase/migrations/20260420140000_checkin_policy_analytics_campaign_waitlist_profile_stock.sql): RPC `analytics_outbox_campaign_segment_stats` (conteggi outbox `campaign_segment` per `status`) e `analytics_waitlist_registration_summary` (funnel iscrizioni nel periodo); messaggio in UI se non ancora applicate.
+**Primo slice in repo:** pagina staff [`app/admin/analytics/page.tsx`](../app/admin/analytics/page.tsx) con conteggi ad alta livello (eventi per stato, registrazioni, outbox `pending`, richieste prodotto / `awaiting_stock`). RPC [`analytics_staff_summary`](../supabase/migrations/20260419120000_analytics_staff_summary_for_staff.sql) con `p_since` e link intervallo (7/30/90 giorni o tutto); breakdown iscrizioni per stato con barre proporzionali; RPC `analytics_outbox_campaign_segment_stats` e **`analytics_outbox_campaign_segment_stats_by_slug`** ([`20260421120000_analytics_campaign_outbox_by_slug.sql`](../supabase/migrations/20260421120000_analytics_campaign_outbox_by_slug.sql)); `analytics_waitlist_registration_summary`. Per intervalli a giorni fissi: blocco **confronto con la finestra precedente** (iscrizioni totali/confermate e richieste prodotto) con query per intervallo in [`lib/gamestore/data.ts`](../lib/gamestore/data.ts). Fallback legacy in UI se le RPC non sono ancora applicate.
 
 ## Fase 4 — Integrazioni
 
-- Export verso strumenti esterni (CSV/JSON schedulato) oppure webhook controllati.
-- Estensioni campagne: tabella `comms_campaigns` è già presente come stub (Fase 1); **primo binding:** enqueue da [`/admin/comms`](../app/admin/comms/page.tsx) con select opzionale record DB (slug/segmento/copy) e **storico outbox** per slug (`?campaign_slug=`). La **revoca marketing** da CRM annulla consenso sul profilo e registra audit; restano propagazione più ampia agli enqueue e metriche avanzate oltre le RPC analytics di segmento.
+- Export verso strumenti esterni (CSV on-demand o schedulato) o webhook controllati.
+- **In repo:** export CSV elenco profili staff [`GET /admin/crm/profiles.csv`](../app/admin/crm/profiles.csv/route.ts). Campagne: tabella `comms_campaigns`; enqueue da [`/admin/comms`](../app/admin/comms/page.tsx) con record opzionale e **storico outbox** per slug (`?campaign_slug=`) con colonne tipo/oggetto/dettaglio. Revoche newsletter/marketing da CRM + RPC annullamento righe `pending` e worker con `OUTBOX_SKIP:*` ([`lib/comms/process-outbox.ts`](../lib/comms/process-outbox.ts)).
 
 ## Sprint dedicato (tracciamento)
 
@@ -47,13 +47,15 @@ Backlog V2 prossimo lavoro operativo: **[docs/sprint-v2-next.md](./sprint-v2-nex
 
 ## Priorità successive (prodotto)
 
-Punti coerenti con [ROADMAP.md](../ROADMAP.md) §251–261 e §278–281, da pianificare dopo la routine deploy:
+Ordine Q2 in [ROADMAP.md](../ROADMAP.md) (**Backlog prioritizzato Q2**). **Stato (chiusura sprint `v2-next-1`, 2026-04-22):** i primi slice per waitlist strutturata (`event_registrations` + outbox), revoche consensi (RPC + worker + audit su scheda CRM), segmento `registration_waitlisted`, telefono/tag/lead su `profiles`, metriche campagna per slug in `/admin/analytics`, policy QR per evento (`check_in_*`), e2e staff (`e2e/admin-staff-routes.spec.ts`) e workflow on-demand sono **in repo** — dettaglio storie in [docs/sprint-v2-next.md](./sprint-v2-next.md).
 
-- **Comms:** waitlist strutturata oltre i conteggi RPC/UI attuali; propagazione più ampia delle revoche consensi sugli enqueue; altri segmenti campagna; audit invii più ricco.
-- **CRM:** telefono in schema se serve; tag/lead se introdotti in modello dati.
-- **Analytics:** metriche campagna (es. sent/failed per campagna), eventuali viste/materializzate, grafici oltre barre e tabelle attuali.
-- **QR:** policy ancora più granulari per singolo evento se richiesto dal dominio.
-- **Qualità:** ampliare [`e2e/`](../e2e/) (es. [`e2e/event-check-in-public.spec.ts`](../e2e/event-check-in-public.spec.ts) per errori link check-in senza login); esecuzione Playwright on-demand tramite [`.github/workflows/e2e-on-demand.yml`](../.github/workflows/e2e-on-demand.yml) (la CI principale non lancia e2e su ogni PR).
+**Estensioni da pianificare (non bloccanti):**
+
+- **Comms:** reminder aggiuntivi (es. 7g), altri segmenti, regole waitlist/promozione più fini, vista SQL metriche se serve.
+- **CRM:** altre fonti in timeline, export schedulati o filtrati come da policy, campi aggiuntivi dopo feedback staff.
+- **Analytics:** grafici e/o viste materializzate oltre tabelle e RPC; confronti più ricchi (altre metriche, stesso pattern a intervalli).
+- **QR:** policy ancora più granulari se il dominio lo richiede oltre `events.check_in_*`.
+- **Qualità:** e2e su mutazioni staff (form CRM/comms); workflow [`.github/workflows/e2e-on-demand.yml`](../.github/workflows/e2e-on-demand.yml) e [`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml) (smoke staging con secret documentati in [deploy-operator-checklist.md](./deploy-operator-checklist.md)).
 
 ## Criteri di chiusura epic (bozza)
 

@@ -12,6 +12,7 @@ import {
   runNewsletterCampaignEnqueue,
   saveCommsCampaignRecord,
 } from "../actions";
+import { formatOutboxTimelineDetail, formatOutboxTimelineTitle, outboxPayloadKindLabel } from "@/lib/gamestore/crm-timeline";
 import { formatDateTime, getCommsCampaignsForStaff, getOutboxRowsForCampaignSlugStaff } from "@/lib/gamestore/data";
 
 type PageProps = {
@@ -92,7 +93,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 <table className="w-full min-w-[280px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border/60 text-left text-foreground/65">
-                      <th className="py-2 pr-3 font-medium">Kind</th>
+                      <th className="py-2 pr-3 font-medium">Tipo messaggio</th>
                       <th className="py-2 pr-3 font-medium">Status</th>
                       <th className="py-2 font-medium">N</th>
                     </tr>
@@ -100,7 +101,10 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                   <tbody>
                     {statsRows.map((row) => (
                       <tr key={`${row.kind}:${row.status}`} className="border-b border-border/40">
-                        <td className="py-2 pr-3 font-mono text-xs">{row.kind}</td>
+                        <td className="py-2 pr-3">
+                          <span className="text-foreground/85">{outboxPayloadKindLabel(row.kind)}</span>
+                          <span className="mt-0.5 block font-mono text-[10px] text-foreground/45">{row.kind}</span>
+                        </td>
                         <td className="py-2 pr-3">{row.status}</td>
                         <td className="py-2 tabular-nums">{Number(row.n)}</td>
                       </tr>
@@ -180,6 +184,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 >
                   <option value="newsletter_opt_in">Newsletter opt-in</option>
                   <option value="marketing_consent">Marketing consent (profilo)</option>
+                  <option value="registration_waitlisted">Iscritti in lista d&apos;attesa (waitlisted)</option>
                 </select>
               </div>
               <div className="grid gap-2">
@@ -273,6 +278,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 >
                   <option value="newsletter_opt_in">newsletter_opt_in</option>
                   <option value="marketing_consent">marketing_consent</option>
+                  <option value="registration_waitlisted">registration_waitlisted</option>
                 </select>
               </div>
               <div className="grid gap-2">
@@ -313,16 +319,22 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                       <tr className="border-b border-border/60 text-left text-foreground/65">
                         <th className="py-2 pr-3 font-medium">Creato</th>
                         <th className="py-2 pr-3 font-medium">Status</th>
-                        <th className="py-2 font-medium">Kind</th>
+                        <th className="py-2 pr-3 font-medium">Tipo</th>
+                        <th className="py-2 pr-3 font-medium">Oggetto</th>
+                        <th className="py-2 font-medium">Dettaglio</th>
                       </tr>
                     </thead>
                     <tbody>
                       {campaignHistory.map((row) => (
-                        <tr key={row.id} className="border-b border-border/40">
+                        <tr key={row.id} className="border-b border-border/40 align-top">
                           <td className="py-2 pr-3 text-xs text-foreground/70">{formatDateTime(row.created_at)}</td>
                           <td className="py-2 pr-3">{row.status}</td>
-                          <td className="py-2 font-mono text-xs">
-                            {typeof row.payload?.kind === "string" ? row.payload.kind : "—"}
+                          <td className="py-2 pr-3 text-sm text-foreground/85">{formatOutboxTimelineTitle(row)}</td>
+                          <td className="py-2 pr-3 text-xs text-foreground/75">
+                            {typeof row.payload?.subject_line === "string" ? row.payload.subject_line : "—"}
+                          </td>
+                          <td className="max-w-[min(28rem,45vw)] py-2 text-xs text-foreground/65">
+                            {formatOutboxTimelineDetail(row)}
                           </td>
                         </tr>
                       ))}

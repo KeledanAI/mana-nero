@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { userMeetsRole } from "@/lib/auth/roles";
 import {
+  formatAuditTimelineDetail,
+  formatAuditTimelineTitle,
+  formatOutboxTimelineDetail,
+  formatOutboxTimelineTitle,
+} from "@/lib/gamestore/crm-timeline";
+import {
   formatDateTime,
   getAdminNotesForSubject,
   getCrmAuditTrailForProfileStaff,
@@ -17,7 +23,12 @@ import {
   getRegistrationsForProfileStaff,
 } from "@/lib/gamestore/data";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
-import { addAdminNote, revokeMarketingConsentForSubject, updateCustomerProfile } from "../../actions";
+import {
+  addAdminNote,
+  revokeMarketingConsentForSubject,
+  revokeNewsletterOptInForSubject,
+  updateCustomerProfile,
+} from "../../actions";
 
 type PageProps = {
   params: Promise<{ profileId: string }>;
@@ -45,6 +56,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
   ]);
 
   type TimelineItem = {
+    key: string;
     at: string;
     kind: string;
     title: string;
@@ -55,6 +67,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
 
   for (const n of notes) {
     timeline.push({
+      key: `note-${n.id}`,
       at: n.created_at,
       kind: "note",
       title: "Nota interna",
@@ -64,6 +77,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
   for (const r of registrations) {
     const ev = r.events;
     timeline.push({
+      key: `registration-${r.id}`,
       at: r.created_at,
       kind: "registration",
       title: `Iscrizione evento · ${ev?.title ?? "Evento"}`,
@@ -72,6 +86,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
   }
   for (const p of productRequests) {
     timeline.push({
+      key: `product-${p.id}`,
       at: p.created_at,
       kind: "product",
       title: `Richiesta prodotto · ${p.product_name}`,
@@ -79,20 +94,21 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
     });
   }
   for (const o of outboxRows) {
-    const kind = typeof o.payload?.kind === "string" ? o.payload.kind : "email";
     timeline.push({
+      key: `outbox-${o.id}`,
       at: o.created_at,
       kind: "outbox",
-      title: `Outbox email · ${kind}`,
-      detail: `Stato: ${o.status}`,
+      title: formatOutboxTimelineTitle(o),
+      detail: formatOutboxTimelineDetail(o),
     });
   }
   for (const a of auditRows) {
     timeline.push({
+      key: `audit-${a.id}`,
       at: a.created_at,
       kind: "audit",
-      title: `Audit · ${a.action_type}`,
-      detail: `${a.entity_type}${a.entity_id ? ` · ${a.entity_id.slice(0, 8)}…` : ""}`,
+      title: formatAuditTimelineTitle(a),
+      detail: formatAuditTimelineDetail(a),
     });
   }
 
@@ -114,7 +130,9 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
         <p className="text-sm text-emerald-700">
           {firstParam(query.success) === "marketing_revoked"
             ? "Marketing consent revocato."
-            : firstParam(query.success)}
+            : firstParam(query.success) === "newsletter_revoked"
+              ? "Newsletter opt-in revocato; eventuali campagne segmentate in coda sono state annullate se possibile."
+              : firstParam(query.success)}
         </p>
       ) : null}
       {firstParam(query.error) ? (
@@ -150,6 +168,35 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
                   name="interests"
                   defaultValue={(subject.interests ?? []).join(", ")}
                   placeholder="Magic, One Piece, RPG"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Telefono (CRM)</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  defaultValue={subject.phone ?? ""}
+                  placeholder="+39 …"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="crm_tags">Tag CRM (virgola)</Label>
+                <Input
+                  id="crm_tags"
+                  name="crm_tags"
+                  defaultValue={(subject.crm_tags ?? []).join(", ")}
+                  placeholder="vip, torneo, preordine"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lead_stage">Fase lead</Label>
+                <Input
+                  id="lead_stage"
+                  name="lead_stage"
+                  defaultValue={subject.lead_stage ?? ""}
+                  placeholder="cold / warm / visit"
                 />
               </div>
               <div className="flex flex-wrap gap-6">
@@ -208,24 +255,36 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
         </Card>
 
         <div className="grid gap-6">
-          {subject.marketing_consent ? (
-            <Card className="border-border/70 bg-card/85">
-              <CardHeader>
-                <CardTitle>Consensi</CardTitle>
-                <p className="text-sm font-normal text-foreground/65">
-                  Revoca il marketing consent sul profilo (non tocca newsletter opt-in). Azione auditata.
-                </p>
-              </CardHeader>
-              <CardContent>
+          <Card className="border-border/70 bg-card/85">
+            <CardHeader>
+              <CardTitle>Consensi rapidi</CardTitle>
+              <p className="text-sm font-normal text-foreground/65">
+                Revoche dedicate: aggiornano il profilo e annullano in outbox le righe{" "}
+                <code className="text-xs">campaign_segment</code> in attesa per quel segmento (migrazioni Q2).
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              {subject.newsletter_opt_in ? (
+                <form action={revokeNewsletterOptInForSubject} className="grid gap-2">
+                  <input type="hidden" name="subject_profile_id" value={subject.id} />
+                  <SubmitButton variant="outline" className="w-fit" pendingLabel="Revoca in corso…">
+                    Revoca newsletter opt-in
+                  </SubmitButton>
+                </form>
+              ) : null}
+              {subject.marketing_consent ? (
                 <form action={revokeMarketingConsentForSubject} className="grid gap-2">
                   <input type="hidden" name="subject_profile_id" value={subject.id} />
                   <SubmitButton variant="outline" className="w-fit" pendingLabel="Revoca in corso…">
                     Revoca marketing consent
                   </SubmitButton>
                 </form>
-              </CardContent>
-            </Card>
-          ) : null}
+              ) : null}
+              {!subject.newsletter_opt_in && !subject.marketing_consent ? (
+                <p className="text-sm text-foreground/65">Nessun consenso newsletter o marketing attivo.</p>
+              ) : null}
+            </CardContent>
+          </Card>
           <Card className="border-border/70 bg-card/85">
             <CardHeader>
               <CardTitle>Nuova nota interna</CardTitle>
@@ -283,16 +342,17 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
           <CardTitle>Timeline (Fase 2)</CardTitle>
           <p className="text-sm font-normal text-foreground/65">
             Vista unificata cronologica: note, iscrizioni, richieste prodotto, email in outbox (canale email con{" "}
-            <code className="text-xs">user_id</code> nel payload), audit staff collegati al profilo o alle iscrizioni.
+            <code className="text-xs">user_id</code> nel payload) con tipo messaggio, oggetto campagna, stato e dettagli
+            errore/skip; audit staff collegati al profilo o alle iscrizioni con etichette leggibili.
           </p>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {timeline.length === 0 ? (
             <p className="text-foreground/70">Nessun elemento nella timeline.</p>
           ) : (
-            timeline.map((item, idx) => (
+            timeline.map((item) => (
               <div
-                key={`${item.kind}-${item.at}-${idx}`}
+                key={item.key}
                 className="rounded-xl border border-border/50 bg-secondary/40 px-4 py-3"
               >
                 <p className="text-xs text-foreground/55">{formatDateTime(item.at)}</p>

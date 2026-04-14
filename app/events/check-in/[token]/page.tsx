@@ -48,7 +48,10 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
 
   if (!UUID_RE.test(trimmed)) {
     return (
-      <section className="mx-auto grid max-w-lg gap-4 px-4 py-16">
+      <section
+        className="mx-auto grid max-w-lg gap-4 px-4 py-16"
+        data-testid="check-in-invalid-token"
+      >
         <Card className="border-border/70 bg-card/85">
           <CardHeader>
             <CardTitle>Link non valido</CardTitle>
@@ -83,7 +86,7 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
 
   if (rpcError) {
     return (
-      <section className="mx-auto grid max-w-lg gap-4 px-4 py-16">
+      <section className="mx-auto grid max-w-lg gap-4 px-4 py-16" data-testid="check-in-rpc-unavailable">
         <Card className="border-border/70 bg-card/85">
           <CardHeader>
             <CardTitle>Check-in</CardTitle>
@@ -118,7 +121,10 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
     const calHref = startIso ? googleCalendarTemplateUrl(startIso, eventTitle) : null;
 
     return (
-      <section className="mx-auto grid max-w-lg gap-4 px-4 py-16">
+      <section
+        className="mx-auto grid max-w-lg gap-4 px-4 py-16"
+        data-testid="check-in-success"
+      >
         <Card className="border-border/70 bg-card/85">
           <CardHeader>
             <CardTitle>Check-in completato</CardTitle>
@@ -153,7 +159,7 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
   }
 
   return (
-    <section className="mx-auto grid max-w-lg gap-4 px-4 py-16">
+    <section className="mx-auto grid max-w-lg gap-4 px-4 py-16" data-testid="check-in-error">
       <Card className="border-border/70 bg-card/85">
         <CardHeader>
           <CardTitle>Check-in</CardTitle>

@@ -62,6 +62,9 @@ export type ProfileListRow = {
   interests: string[] | null;
   /** Override giorni lookahead notifiche stock (null = solo env globale). */
   stock_notification_lookahead_days?: number | null;
+  phone?: string | null;
+  crm_tags?: string[] | null;
+  lead_stage?: string | null;
 };
 
 export type CrmProfileListFilters = {
@@ -299,7 +302,7 @@ export async function getAllProfilesForStaff(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days",
+      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days, phone, crm_tags, lead_stage",
     )
     .order("updated_at", { ascending: false });
 
@@ -339,9 +342,9 @@ export async function getProfilesForStaffSearch(
   const term = escapeIlikePattern(q.slice(0, 120));
   const pattern = `%${term}%`;
   const select =
-    "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days, updated_at" as const;
+    "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days, phone, crm_tags, lead_stage, updated_at" as const;
 
-  const [byEmail, byName] = await Promise.all([
+  const [byEmail, byName, byPhone] = await Promise.all([
     supabase.from("profiles").select(select).ilike("email", pattern).order("updated_at", { ascending: false }).limit(120),
     supabase
       .from("profiles")
@@ -349,14 +352,20 @@ export async function getProfilesForStaffSearch(
       .ilike("full_name", pattern)
       .order("updated_at", { ascending: false })
       .limit(120),
+    supabase
+      .from("profiles")
+      .select(select)
+      .ilike("phone", pattern)
+      .order("updated_at", { ascending: false })
+      .limit(120),
   ]);
 
-  if (byEmail.error || byName.error) return [];
+  if (byEmail.error || byName.error || byPhone.error) return [];
 
   type Row = ProfileListRow & { updated_at?: string };
   const seen = new Set<string>();
   const merged: Row[] = [];
-  for (const row of [...(byEmail.data ?? []), ...(byName.data ?? [])] as Row[]) {
+  for (const row of [...(byEmail.data ?? []), ...(byName.data ?? []), ...(byPhone.data ?? [])] as Row[]) {
     if (seen.has(row.id)) continue;
     seen.add(row.id);
     merged.push(row);
@@ -377,6 +386,9 @@ export async function getProfilesForStaffSearch(
         marketing_consent: row.marketing_consent,
         interests: row.interests,
         stock_notification_lookahead_days: row.stock_notification_lookahead_days ?? null,
+        phone: row.phone ?? null,
+        crm_tags: row.crm_tags ?? null,
+        lead_stage: row.lead_stage ?? null,
       }) as ProfileListRow,
   );
   return applyCrmProfileFilters(mapped, filters);
@@ -387,7 +399,45 @@ export type OutboxCampaignHistoryRow = {
   status: string;
   payload: Record<string, unknown>;
   created_at: string;
+  idempotency_key: string;
+  scheduled_at: string;
+  last_error: string | null;
+  attempt_count: number;
 };
+
+/** Conteggio iscrizioni create in [startIso, endIso), opzionalmente filtrate per stato. */
+export async function countEventRegistrationsCreatedInRangeStaff(
+  supabase: SupabaseClient,
+  startIso: string,
+  endIso: string,
+  status?: string | null,
+) {
+  let q = supabase
+    .from("event_registrations")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", startIso)
+    .lt("created_at", endIso);
+  if (status) q = q.eq("status", status);
+  const { count, error } = await q;
+  if (error) return null;
+  return count ?? 0;
+}
+
+/** Conteggio richieste prodotto create in [startIso, endIso). */
+export async function countProductRequestsCreatedInRangeStaff(
+  supabase: SupabaseClient,
+  startIso: string,
+  endIso: string,
+) {
+  const { count, error } = await supabase
+    .from("product_reservation_requests")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", startIso)
+    .lt("created_at", endIso);
+
+  if (error) return null;
+  return count ?? 0;
+}
 
 /** Righe outbox email per `payload.campaign_id` (slug campagna), più recenti prima. */
 export async function getOutboxRowsForCampaignSlugStaff(
@@ -399,7 +449,7 @@ export async function getOutboxRowsForCampaignSlugStaff(
   if (!slug) return [];
   const { data, error } = await supabase
     .from("communication_outbox")
-    .select("id, status, payload, created_at")
+    .select("id, status, payload, created_at, idempotency_key, scheduled_at, last_error, attempt_count")
     .eq("channel", "email")
     .filter("payload->>campaign_id", "eq", slug)
     .order("created_at", { ascending: false })
@@ -500,7 +550,7 @@ export async function getProfileByIdForStaff(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days",
+      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days, phone, crm_tags, lead_stage",
     )
     .eq("id", profileId)
     .maybeSingle();
@@ -576,6 +626,10 @@ export type OutboxEmailTimelineRow = {
   status: string;
   payload: Record<string, unknown>;
   created_at: string;
+  idempotency_key: string;
+  scheduled_at: string;
+  last_error: string | null;
+  attempt_count: number;
 };
 
 export async function getOutboxEmailTimelineForProfileStaff(
@@ -585,7 +639,7 @@ export async function getOutboxEmailTimelineForProfileStaff(
 ) {
   const { data, error } = await supabase
     .from("communication_outbox")
-    .select("id, status, payload, created_at")
+    .select("id, status, payload, created_at, idempotency_key, scheduled_at, last_error, attempt_count")
     .eq("channel", "email")
     .contains("payload", { user_id: userId })
     .order("created_at", { ascending: false })

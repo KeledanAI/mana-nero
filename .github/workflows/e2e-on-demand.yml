@@ -31,4 +31,9 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: ${{ inputs.base_url }}
           PLAYWRIGHT_SKIP_WEBSERVER: "1"
-        run: npx playwright test e2e/admin-analytics-gate.spec.ts e2e/public-pages.spec.ts
+        run: |
+          npx playwright test \
+            e2e/admin-analytics-gate.spec.ts \
+            e2e/public-pages.spec.ts \
+            e2e/event-check-in-public.spec.ts \
+            e2e/admin-staff-routes.spec.ts

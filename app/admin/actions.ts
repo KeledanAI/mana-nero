@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { userMeetsRole } from "@/lib/auth/roles";
-import { enqueueStaffSegmentCampaign, normalizeCampaignId } from "@/lib/comms/campaign-segment-enqueue";
+import {
+  enqueueStaffSegmentCampaign,
+  normalizeCampaignId,
+  parseStaffCampaignSegment,
+} from "@/lib/comms/campaign-segment-enqueue";
 import { enqueueEventReminder24hScan } from "@/lib/comms/event-reminders";
 import { enqueueMessage } from "@/lib/comms/enqueue";
 import { runBookingAction } from "@/lib/domain/booking";
@@ -311,15 +315,76 @@ export async function revokeMarketingConsentForSubject(formData: FormData) {
     redirect(`/admin/crm/${subjectId}?error=${encodeURIComponent(error.message)}`);
   }
 
+  let outboxCancelled = 0;
+  let outboxCancelNote: string | undefined;
+  const { data: cancelRpc, error: cancelErr } = await supabase.rpc(
+    "staff_cancel_pending_marketing_campaign_outbox",
+    { p_profile_id: subjectId },
+  );
+  const cancelPayload = cancelRpc as { ok?: boolean; cancelled?: number; error?: string } | null;
+  if (!cancelErr && cancelPayload?.ok) {
+    outboxCancelled = Number(cancelPayload.cancelled ?? 0);
+  } else {
+    outboxCancelNote =
+      cancelErr?.message ?? cancelPayload?.error ?? "outbox_cancel_rpc_unavailable_apply_migrations";
+  }
+
   await logStaffCrmAction(supabase, user.id, {
     action_type: "marketing_consent_revoked",
     entity_type: "profile",
     entity_id: subjectId,
-    payload: {},
+    payload: {
+      outbox_campaign_pending_cancelled: outboxCancelled,
+      ...(outboxCancelNote ? { outbox_cancel_note: outboxCancelNote } : {}),
+    },
   });
   revalidatePath(`/admin/crm/${subjectId}`);
   revalidatePath("/admin/crm");
   redirect(`/admin/crm/${subjectId}?success=marketing_revoked`);
+}
+
+export async function revokeNewsletterOptInForSubject(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const subjectId = String(formData.get("subject_profile_id") || "").trim();
+  if (!subjectId) {
+    redirect("/admin/crm?error=missing_subject");
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ newsletter_opt_in: false, updated_at: new Date().toISOString() })
+    .eq("id", subjectId);
+
+  if (error) {
+    redirect(`/admin/crm/${subjectId}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  let outboxCancelled = 0;
+  let outboxCancelNote: string | undefined;
+  const { data: cancelRpc, error: cancelErr } = await supabase.rpc(
+    "staff_cancel_pending_newsletter_campaign_outbox",
+    { p_profile_id: subjectId },
+  );
+  const cancelPayload = cancelRpc as { ok?: boolean; cancelled?: number; error?: string } | null;
+  if (!cancelErr && cancelPayload?.ok) {
+    outboxCancelled = Number(cancelPayload.cancelled ?? 0);
+  } else {
+    outboxCancelNote =
+      cancelErr?.message ?? cancelPayload?.error ?? "outbox_cancel_rpc_unavailable_apply_migrations";
+  }
+
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "newsletter_opt_in_revoked",
+    entity_type: "profile",
+    entity_id: subjectId,
+    payload: {
+      outbox_campaign_pending_cancelled: outboxCancelled,
+      ...(outboxCancelNote ? { outbox_cancel_note: outboxCancelNote } : {}),
+    },
+  });
+  revalidatePath(`/admin/crm/${subjectId}`);
+  revalidatePath("/admin/crm");
+  redirect(`/admin/crm/${subjectId}?success=newsletter_revoked`);
 }
 
 export async function rotateRegistrationCheckInToken(formData: FormData) {
@@ -361,8 +426,7 @@ export async function saveCommsCampaignRecord(formData: FormData) {
   const slug = normalizeCampaignId(String(formData.get("record_slug") || ""));
   const title = String(formData.get("record_title") || "").trim();
   const segmentRaw = String(formData.get("record_segment") || "newsletter_opt_in").trim();
-  const segment_kind =
-    segmentRaw === "marketing_consent" ? ("marketing_consent" as const) : ("newsletter_opt_in" as const);
+  const segment_kind = parseStaffCampaignSegment(segmentRaw);
   const subject_line = String(formData.get("record_subject") || "").trim() || null;
   const teaser = String(formData.get("record_teaser") || "").trim() || null;
 
@@ -477,8 +541,7 @@ export async function runNewsletterCampaignEnqueue(formData: FormData) {
     }
   }
 
-  const segment =
-    segmentRaw === "marketing_consent" ? ("marketing_consent" as const) : ("newsletter_opt_in" as const);
+  const segment = parseStaffCampaignSegment(segmentRaw);
 
   try {
     const admin = createAdminClient();
@@ -637,6 +700,17 @@ export async function updateCustomerProfile(formData: FormData) {
 
   const newsletterOptIn = String(formData.get("newsletter_opt_in") || "") === "true";
   const marketingConsent = String(formData.get("marketing_consent") || "") === "true";
+  const phone = String(formData.get("phone") || "").trim().slice(0, 64) || null;
+  const tagsRaw = String(formData.get("crm_tags") || "").trim();
+  const crm_tags = tagsRaw
+    ? tagsRaw
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 24)
+        .map((t) => t.slice(0, 48))
+    : [];
+  const lead_stage = String(formData.get("lead_stage") || "").trim().slice(0, 80) || null;
   const stockLookaheadRaw = String(formData.get("stock_notification_lookahead_days") || "").trim();
   let stockNotificationLookaheadDays: number | null = null;
   if (stockLookaheadRaw) {
@@ -650,6 +724,9 @@ export async function updateCustomerProfile(formData: FormData) {
     full_name: fullName || null,
     newsletter_opt_in: newsletterOptIn,
     marketing_consent: marketingConsent,
+    phone,
+    crm_tags,
+    lead_stage,
     interests,
     stock_notification_lookahead_days: stockNotificationLookaheadDays,
     updated_at: new Date().toISOString(),
@@ -668,6 +745,38 @@ export async function updateCustomerProfile(formData: FormData) {
     redirect(`/admin/crm/${id}?error=${encodeURIComponent(error.message)}`);
   }
 
+  let outboxNewsletterCancelled = 0;
+  let outboxMarketingCancelled = 0;
+  let outboxNewsletterNote: string | undefined;
+  let outboxMarketingNote: string | undefined;
+
+  if (!newsletterOptIn) {
+    const { data: nlRpc, error: nlErr } = await supabase.rpc(
+      "staff_cancel_pending_newsletter_campaign_outbox",
+      { p_profile_id: id },
+    );
+    const nlPayload = nlRpc as { ok?: boolean; cancelled?: number; error?: string } | null;
+    if (!nlErr && nlPayload?.ok) {
+      outboxNewsletterCancelled = Number(nlPayload.cancelled ?? 0);
+    } else {
+      outboxNewsletterNote =
+        nlErr?.message ?? nlPayload?.error ?? "outbox_cancel_rpc_unavailable_apply_migrations";
+    }
+  }
+  if (!marketingConsent) {
+    const { data: mkRpc, error: mkErr } = await supabase.rpc(
+      "staff_cancel_pending_marketing_campaign_outbox",
+      { p_profile_id: id },
+    );
+    const mkPayload = mkRpc as { ok?: boolean; cancelled?: number; error?: string } | null;
+    if (!mkErr && mkPayload?.ok) {
+      outboxMarketingCancelled = Number(mkPayload.cancelled ?? 0);
+    } else {
+      outboxMarketingNote =
+        mkErr?.message ?? mkPayload?.error ?? "outbox_cancel_rpc_unavailable_apply_migrations";
+    }
+  }
+
   await logStaffCrmAction(supabase, user.id, {
     action_type: "customer_profile_updated",
     entity_type: "profile",
@@ -675,10 +784,26 @@ export async function updateCustomerProfile(formData: FormData) {
     payload: {
       newsletter_opt_in: newsletterOptIn,
       marketing_consent: marketingConsent,
+      phone_set: Boolean(phone),
+      crm_tags_count: crm_tags.length,
+      lead_stage_set: Boolean(lead_stage),
       stock_notification_lookahead_days: stockNotificationLookaheadDays,
       role_changed: userMeetsRole(actor?.role, "admin") ? (payload.role as string | undefined) : undefined,
+      ...(outboxNewsletterCancelled > 0 || outboxNewsletterNote
+        ? {
+            outbox_newsletter_pending_cancelled: outboxNewsletterCancelled,
+            ...(outboxNewsletterNote ? { outbox_newsletter_cancel_note: outboxNewsletterNote } : {}),
+          }
+        : {}),
+      ...(outboxMarketingCancelled > 0 || outboxMarketingNote
+        ? {
+            outbox_marketing_pending_cancelled: outboxMarketingCancelled,
+            ...(outboxMarketingNote ? { outbox_marketing_cancel_note: outboxMarketingNote } : {}),
+          }
+        : {}),
     },
   });
+
   revalidatePath(`/admin/crm/${id}`);
   revalidatePath("/admin/crm");
   redirect(`/admin/crm/${id}?success=profile_updated`);

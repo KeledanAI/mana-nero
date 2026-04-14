@@ -8,6 +8,14 @@ export type StaffCrmAuditPayload = {
 };
 
 /**
+ * Convenzione `action_type` (estendere in modo additivo; allineare payload a timeline CRM):
+ * - `customer_profile_updated` — salvataggio scheda; può includere `outbox_*_pending_cancelled` se consensi disattivati.
+ * - `marketing_consent_revoked` / `newsletter_opt_in_revoked` — revoche dedicate + conteggi outbox campagna.
+ * - `campaign_segment_enqueued`, `comms_campaign_record_saved`, `staff_check_in`, `rotate_check_in_token`, ecc. (vedi `app/admin/actions.ts`).
+ * Annullamenti outbox lato worker (`cancelled`, `OUTBOX_SKIP:*`) restano su `communication_outbox.last_error`, non su questa tabella.
+ */
+
+/**
  * Best-effort audit CRM (RLS: actor deve essere la sessione corrente).
  * Non blocca il flusso chiamante in caso di errore insert.
  */

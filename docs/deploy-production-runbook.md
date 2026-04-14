@@ -95,11 +95,15 @@ Equivale a `verify:supabase` poi `smoke:test`. Dopo `supabase db push` sul remot
 
 - Homepage e `/events` caricano.
 - Magic link (o login) con dominio reale.
-- Utente **staff**: `/admin`, evento, check-in, CSV partecipanti; `/admin/comms` per scan reminder; per pagamenti, verifica campi prezzo/deposito su evento e stato partecipanti.
+- Utente **staff**: `/admin`, evento, check-in, CSV partecipanti; `/admin/comms` (reminder, campagne, storico slug); `/admin/crm` (ricerca, **Esporta CSV** profili, schede cliente); `/admin/analytics`; per pagamenti, verifica prezzo/deposito su evento e stato partecipanti.
 
 ## 7. CI GitHub
 
-Su ogni PR: workflow verde (lint, test, build). In locale prima del push: `npm run ci`.
+- **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): su push/PR verso `main` / `master` / `develop` — `npm ci`, `lint`, `test`, `build` (build con URL Supabase placeholder).
+- **E2E on demand** ([`.github/workflows/e2e-on-demand.yml`](../.github/workflows/e2e-on-demand.yml)): solo manuale — input `base_url` (es. preview Vercel); Playwright senza avviare il dev server.
+- **Staging DB verify (optional)** ([`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml)): solo manuale — `verify:migrations` sempre; con repository secret `STAGING_NEXT_PUBLIC_SUPABASE_URL` e `STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` anche `verify:supabase` e `smoke:test`. Dettaglio: [deploy-operator-checklist.md](./deploy-operator-checklist.md) (sezione staging).
+
+In locale prima del push: `npm run ci`.
 
 ---
 

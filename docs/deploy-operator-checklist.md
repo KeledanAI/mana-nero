@@ -2,6 +2,8 @@
 
 Usa questa lista in parallelo a [deploy-production-runbook.md](./deploy-production-runbook.md). Spunta le voci quando completate (issue tracker o PR description).
 
+**GitHub Actions in repo:** **CI** (ogni PR), **E2E on demand** (manuale, URL deploy), **Staging DB verify** (manuale, migrazioni + smoke opzionale con secret staging) — vedi [deploy-production-runbook.md §7](./deploy-production-runbook.md#7-ci-github).
+
 ## Variabili e dashboard
 
 - [ ] **Vercel → Environment variables:** stessi nomi di [.env.example](../.env.example) necessari al runtime (`NEXT_PUBLIC_*`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_*`, `OUTBOX_CRON_SECRET` o `CRON_SECRET`, `STRIPE_*` se eventi a pagamento, ecc.).
@@ -37,8 +39,8 @@ Per controllo strict delle variabili tipo produzione senza lo script composito: 
 
 ## Post-deploy e CI
 
-- [ ] **Post-deploy manuale:** sito pubblico, `/events`, login magic link; staff su `/admin` e un evento; oppure di nuovo `verify:release-stack` con env di produzione.
-- [ ] **CI:** workflow GitHub verde sulla branch principale; in locale `npm run ci` prima del push.
+- [ ] **Post-deploy manuale:** sito pubblico, `/events`, login magic link; staff su `/admin`, evento (check-in, CSV partecipanti), `/admin/comms`, `/admin/crm` (scheda cliente, export **CSV profili** se serve), `/admin/analytics`; oppure `verify:release-stack` con env di produzione.
+- [ ] **CI:** workflow **CI** verde sulla branch principale; in locale `npm run ci` prima del push. Opzionale: E2E on demand o Staging DB verify (vedi sotto / runbook §7).
 
 ### GitHub Actions — verifica database staging (opzionale)
 

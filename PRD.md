@@ -151,6 +151,8 @@ Core principle:
 
 ## Features
 
+> **Nota implementazione (repository):** i primi slice V2 effettivamente presenti nel codice (pagamenti Stripe, reminder/campagne outbox, check-in QR, CRM/analytics staff, stock alert, ecc.) sono descritti in [ROADMAP.md](./ROADMAP.md) (tabella «Stato implementazione») e nello sprint [docs/sprint-v2-next.md](./docs/sprint-v2-next.md). La waitlist strutturata usa **`event_registrations`** con stato `waitlisted` (nessuna tabella separata `event_waitlist` nel DB attuale).
+
 ### 4.1 Event Enhancements
 - Online payments
 - Deposits
@@ -267,8 +269,7 @@ Core entities:
 - user_preferences
 - events
 - event_categories
-- event_registrations
-- event_waitlist
+- event_registrations (include **waitlist** come righe `status = waitlisted` + `waitlist_position`; non tabella `event_waitlist` separata nell’implementazione attuale)
 - posts
 - newsletter_subscribers
 - broadcasts

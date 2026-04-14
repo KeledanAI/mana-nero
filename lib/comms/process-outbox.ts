@@ -1,6 +1,7 @@
 import { sendManaNeroEmail } from "@/lib/email/send-transactional";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSiteUrl } from "@/lib/site-url";
+import { outboxSkipError, parseOutboxSkipCode } from "@/lib/comms/outbox-skip";
 
 type OutboxRow = {
   id: string;
@@ -109,7 +110,8 @@ async function dispatchCampaignSegmentEmail(
   const campaignId = payload.campaign_id;
   const subjectLineRaw = payload.subject_line;
   const teaserRaw = payload.teaser;
-  const segmentKind = payload.segment_kind;
+  const segmentKindRaw = payload.segment_kind;
+  const segmentKindStr = typeof segmentKindRaw === "string" ? segmentKindRaw : "";
 
   if (typeof userId !== "string" || typeof campaignId !== "string") {
     throw new Error("campaign_payload_missing_ids");
@@ -123,13 +125,40 @@ async function dispatchCampaignSegmentEmail(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("email, full_name")
+    .select("email, full_name, newsletter_opt_in, marketing_consent")
     .eq("id", userId)
     .maybeSingle();
 
   const to = profile?.email?.trim();
   if (!to) {
     throw new Error("recipient_email_missing");
+  }
+
+  const sk =
+    segmentKindStr === "marketing_consent"
+      ? "marketing_consent"
+      : segmentKindStr === "registration_waitlisted"
+        ? "registration_waitlisted"
+        : "newsletter_opt_in";
+
+  if (sk === "marketing_consent" && !profile?.marketing_consent) {
+    throw outboxSkipError("marketing_consent_revoked");
+  }
+  if (sk === "newsletter_opt_in" && !profile?.newsletter_opt_in) {
+    throw outboxSkipError("newsletter_opt_in_revoked");
+  }
+  if (sk === "registration_waitlisted") {
+    const { count, error: cErr } = await supabase
+      .from("event_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "waitlisted");
+    if (cErr) {
+      throw new Error(cErr.message);
+    }
+    if (!count || count < 1) {
+      throw outboxSkipError("not_on_waitlist");
+    }
   }
 
   const origin = getSiteUrl();
@@ -149,9 +178,11 @@ async function dispatchCampaignSegmentEmail(
   bodyHtml += `<p><a href="${escapeHtml(newsUrl)}" style="color:#fafafa;">Novità</a> · <a href="${escapeHtml(protectedUrl)}" style="color:#fafafa;">Area riservata</a></p>`;
 
   const segmentLabel =
-    segmentKind === "marketing_consent"
+    segmentKindStr === "marketing_consent"
       ? "Marketing (consenso profilo)"
-      : "Newsletter opt-in";
+      : segmentKindStr === "registration_waitlisted"
+        ? "Lista d'attesa (iscrizioni waitlisted)"
+        : "Newsletter opt-in";
   bodyHtml += `<p style="font-size:11px;color:#888;">Segmento: ${escapeHtml(segmentLabel)}</p>`;
 
   await sendManaNeroEmail({
@@ -350,6 +381,21 @@ export async function processOutboxBatch(maxItems: number): Promise<{
       completed++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      const skipCode = parseOutboxSkipCode(msg);
+      if (skipCode) {
+        const { error: cancelErr } = await supabase
+          .from("communication_outbox")
+          .update({
+            status: "cancelled",
+            last_error: skipCode.slice(0, 500),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", working.id);
+        if (cancelErr) {
+          errors.push(`${working.id}: ${cancelErr.message}`);
+        }
+        continue;
+      }
       const terminal = nextAttempt >= MAX_ATTEMPTS;
       const { error: failErr } = await supabase
         .from("communication_outbox")

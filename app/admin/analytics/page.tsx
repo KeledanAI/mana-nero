@@ -2,6 +2,10 @@ import Link from "next/link";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
+import {
+  countEventRegistrationsCreatedInRangeStaff,
+  countProductRequestsCreatedInRangeStaff,
+} from "@/lib/gamestore/data";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -50,11 +54,24 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
   const sinceIso = sinceIsoFromDays(days);
   const { supabase } = await requireUserWithRole("staff");
 
-  const [rpc, campaignRpc, waitlistRpc] = await Promise.all([
-    supabase.rpc("analytics_staff_summary", { p_since: sinceIso }),
-    supabase.rpc("analytics_outbox_campaign_segment_stats"),
-    supabase.rpc("analytics_waitlist_registration_summary", { p_since: sinceIso }),
-  ]);
+  const prevWindowStart = days > 0 && sinceIso ? sinceIsoFromDays(days * 2) : null;
+
+  const [rpc, campaignRpc, campaignBySlugRpc, waitlistRpc, prevRegsTotal, prevRegsConfirmed, prevProductReq] =
+    await Promise.all([
+      supabase.rpc("analytics_staff_summary", { p_since: sinceIso }),
+      supabase.rpc("analytics_outbox_campaign_segment_stats"),
+      supabase.rpc("analytics_outbox_campaign_segment_stats_by_slug", { p_since: sinceIso }),
+      supabase.rpc("analytics_waitlist_registration_summary", { p_since: sinceIso }),
+      prevWindowStart && sinceIso
+        ? countEventRegistrationsCreatedInRangeStaff(supabase, prevWindowStart, sinceIso)
+        : Promise.resolve(null),
+      prevWindowStart && sinceIso
+        ? countEventRegistrationsCreatedInRangeStaff(supabase, prevWindowStart, sinceIso, "confirmed")
+        : Promise.resolve(null),
+      prevWindowStart && sinceIso
+        ? countProductRequestsCreatedInRangeStaff(supabase, prevWindowStart, sinceIso)
+        : Promise.resolve(null),
+    ]);
   let summary: StaffSummaryJson | null = null;
   let rpcFailed = false;
 
@@ -126,6 +143,10 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
   const campaignRows: CampaignSegRow[] = Array.isArray(campaignRpc.data)
     ? (campaignRpc.data as CampaignSegRow[])
     : [];
+  type CampaignSlugRow = { campaign_id: string; status: string; n: number | string };
+  const campaignSlugRows: CampaignSlugRow[] = Array.isArray(campaignBySlugRpc.data)
+    ? (campaignBySlugRpc.data as CampaignSlugRow[])
+    : [];
   const waitlistSummary =
     !waitlistRpc.error && waitlistRpc.data && typeof waitlistRpc.data === "object"
       ? (waitlistRpc.data as Record<string, number>)
@@ -134,6 +155,18 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
   const wlConf = Number(waitlistSummary?.confirmed ?? 0);
   const wlRatio =
     wlWait + wlConf > 0 ? `${Math.round((100 * wlConf) / (wlWait + wlConf))}% confermate sul totale waitlist+confermate` : "n/d";
+
+  const showPeriodCompare = !rpcFailed && days > 0 && sinceIso && prevWindowStart;
+  const curRegs = Number(s.registrations_total ?? 0);
+  const curRegsConf = Number(s.registrations_confirmed ?? 0);
+  const curProd = Number(s.product_requests_total ?? 0);
+  const fmtDelta = (cur: number, prev: number | null | undefined) => {
+    if (prev == null) return "";
+    const d = cur - prev;
+    if (d === 0) return " (uguale al periodo precedente)";
+    const sign = d > 0 ? "+" : "";
+    return ` (${sign}${d} vs. finestra precedente)`;
+  };
 
   const rangeLinks = [
     { label: "7 giorni", days: "7" },
@@ -198,6 +231,53 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
             ))}
           </div>
 
+          {showPeriodCompare && prevRegsTotal != null ? (
+            <div className="rounded-xl border border-border/50 bg-background/40 px-4 py-3 text-sm">
+              <p className="font-medium text-foreground/90">Confronto con finestra precedente</p>
+              <p className="mt-1 text-xs text-foreground/60">
+                Periodo corrente: ultimi {days} giorni (da <code className="text-xs">{sinceIso}</code>). Finestra
+                precedente: stessi {days} giorni immediatamente prima (da{" "}
+                <code className="text-xs">{prevWindowStart}</code> fino all&apos;inizio del periodo corrente). Solo
+                iscrizioni e richieste prodotto (conteggi esatti per intervallo); le altre tile usano la stessa
+                semantica del riepilogo in alto dove applicabile.
+              </p>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+                <li className="rounded-lg border border-border/40 bg-secondary/30 px-3 py-2">
+                  <span className="text-foreground/65">Iscrizioni (totale)</span>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {curRegs}
+                    <span className="text-sm font-normal text-foreground/55">
+                      {fmtDelta(curRegs, prevRegsTotal)}
+                    </span>
+                  </p>
+                  <p className="text-xs text-foreground/50">Periodo precedente: {prevRegsTotal}</p>
+                </li>
+                <li className="rounded-lg border border-border/40 bg-secondary/30 px-3 py-2">
+                  <span className="text-foreground/65">Iscrizioni confermate</span>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {curRegsConf}
+                    <span className="text-sm font-normal text-foreground/55">
+                      {prevRegsConfirmed != null ? fmtDelta(curRegsConf, prevRegsConfirmed) : ""}
+                    </span>
+                  </p>
+                  <p className="text-xs text-foreground/50">
+                    Periodo precedente: {prevRegsConfirmed ?? "n/d"}
+                  </p>
+                </li>
+                <li className="rounded-lg border border-border/40 bg-secondary/30 px-3 py-2">
+                  <span className="text-foreground/65">Richieste prodotto</span>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {curProd}
+                    <span className="text-sm font-normal text-foreground/55">
+                      {prevProductReq != null ? fmtDelta(curProd, prevProductReq) : ""}
+                    </span>
+                  </p>
+                  <p className="text-xs text-foreground/50">Periodo precedente: {prevProductReq ?? "n/d"}</p>
+                </li>
+              </ul>
+            </div>
+          ) : null}
+
           {campaignRpc.error ? (
             <p className="text-xs text-foreground/60">
               RPC <code className="text-xs">analytics_outbox_campaign_segment_stats</code> non disponibile (applica
@@ -231,6 +311,46 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
           ) : (
             <p className="text-sm text-foreground/70">Nessuna riga outbox campagna segmentata ancora.</p>
           )}
+
+          {campaignBySlugRpc.error ? (
+            <p className="text-xs text-foreground/60">
+              RPC <code className="text-xs">analytics_outbox_campaign_segment_stats_by_slug</code> non disponibile
+              (applica migrazione <code className="text-xs">20260421120000_analytics_campaign_outbox_by_slug.sql</code>
+              ).
+            </p>
+          ) : campaignSlugRows.length > 0 ? (
+            <div>
+              <p className="text-sm font-medium text-foreground/90">Campagne segmentate per slug e stato</p>
+              <p className="mt-1 text-xs text-foreground/60">
+                <code className="text-xs">payload.campaign_id</code> e stato outbox; righe filtrate da{" "}
+                <code className="text-xs">created_at</code> come l&apos;intervallo in alto
+                {sinceIso ? ` (da ${sinceIso})` : " (tutto lo storico)"}.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[280px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border/60 text-left text-foreground/65">
+                      <th className="py-2 pr-3 font-medium">Slug campagna</th>
+                      <th className="py-2 pr-3 font-medium">Status</th>
+                      <th className="py-2 font-medium">N</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaignSlugRows.map((row) => (
+                      <tr
+                        key={`${row.campaign_id}:${row.status}`}
+                        className="border-b border-border/40"
+                      >
+                        <td className="py-2 pr-3 font-mono text-xs">{row.campaign_id}</td>
+                        <td className="py-2 pr-3">{row.status}</td>
+                        <td className="py-2 tabular-nums">{Number(row.n)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
 
           {waitlistRpc.error ? (
             <p className="text-xs text-foreground/60">

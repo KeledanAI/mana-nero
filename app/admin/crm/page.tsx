@@ -87,7 +87,15 @@ export default async function AdminCrmPage({ searchParams }: PageProps) {
 
       <Card className="border-border/70 bg-card/85">
         <CardHeader>
-          <CardTitle>Clienti registrati</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle>Clienti registrati</CardTitle>
+            <Link
+              href="/admin/crm/profiles.csv"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Esporta CSV
+            </Link>
+          </div>
           <form method="get" className="mt-3 grid gap-4">
             <div className="flex flex-wrap items-end gap-2">
               <div className="grid min-w-[200px] flex-1 gap-1">
@@ -183,7 +191,11 @@ export default async function AdminCrmPage({ searchParams }: PageProps) {
                 </div>
               </div>
               <p className="mt-2 text-sm text-foreground/70">
-                Interests: {(profile.interests ?? []).join(", ") || "n/a"} · Newsletter: {profile.newsletter_opt_in ? "yes" : "no"} · Marketing: {profile.marketing_consent ? "yes" : "no"}
+                Interests: {(profile.interests ?? []).join(", ") || "n/a"} · Newsletter:{" "}
+                {profile.newsletter_opt_in ? "yes" : "no"} · Marketing: {profile.marketing_consent ? "yes" : "no"}
+                {profile.phone ? ` · Tel: ${profile.phone}` : ""}
+                {(profile.crm_tags?.length ?? 0) > 0 ? ` · Tag: ${(profile.crm_tags ?? []).join(", ")}` : ""}
+                {profile.lead_stage ? ` · Lead: ${profile.lead_stage}` : ""}
               </p>
             </div>
           ))}
