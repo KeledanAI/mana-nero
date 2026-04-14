@@ -26,11 +26,57 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
+async function dispatchProductStockAvailableEmail(
+  supabase: ReturnType<typeof createAdminClient>,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const userId = payload.user_id;
+  const productNameRaw = payload.product_name;
+  const productName =
+    typeof productNameRaw === "string" && productNameRaw.trim()
+      ? productNameRaw.trim()
+      : "la tua richiesta";
+
+  if (typeof userId !== "string") {
+    throw new Error("email_payload_missing_user_id");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const to = profile?.email?.trim();
+  if (!to) {
+    throw new Error("recipient_email_missing");
+  }
+
+  const origin = getSiteUrl();
+  const areaUrl = `${origin}/protected`;
+
+  const subject = `Aggiornamento richiesta prodotto — ${escapeHtml(productName)}`;
+  let bodyHtml = `<p>Ciao${profile?.full_name ? ` ${escapeHtml(profile.full_name)}` : ""},</p>`;
+  bodyHtml += `<p>Abbiamo un aggiornamento sulla tua richiesta <strong>${escapeHtml(productName)}</strong> in stato <strong>in attesa merce</strong>: controlla l&apos;area riservata per i dettagli o passa in negozio.</p>`;
+  bodyHtml += `<p><a href="${escapeHtml(areaUrl)}" style="color:#fafafa;">Apri area riservata</a></p>`;
+
+  await sendManaNeroEmail({
+    to,
+    subject,
+    sections: [{ title: "Mana Nero", bodyHtml }],
+  });
+}
+
 async function dispatchEmail(
   supabase: ReturnType<typeof createAdminClient>,
   row: OutboxRow,
 ): Promise<void> {
   const kind = payloadKind(row.payload);
+  if (kind === "product_stock_available") {
+    await dispatchProductStockAvailableEmail(supabase, row.payload);
+    return;
+  }
+
   const userId = row.payload.user_id;
   const eventId = row.payload.event_id;
 
@@ -76,6 +122,22 @@ async function dispatchEmail(
     subject = `Posto disponibile — ${escapeHtml(title)}`;
     bodyHtml += `<p>È libero un posto: la tua iscrizione a <strong>${escapeHtml(title)}</strong> è ora <strong>confermata</strong>.</p>`;
     if (startsAt) bodyHtml += `<p>Data: ${escapeHtml(startsAt)}</p>`;
+    bodyHtml += `<p><a href="${escapeHtml(eventUrl)}" style="color:#fafafa;">Apri scheda evento</a></p>`;
+  } else if (kind === "booking_pending_payment") {
+    subject = `Completa il pagamento — ${escapeHtml(title)}`;
+    bodyHtml += `<p>La tua iscrizione a <strong>${escapeHtml(title)}</strong> è in <strong>attesa di pagamento</strong>.</p>`;
+    if (startsAt) bodyHtml += `<p>Data evento: ${escapeHtml(startsAt)}</p>`;
+    bodyHtml += `<p>Apri la scheda evento e usa il pulsante <strong>Completa pagamento</strong> entro il termine indicato.</p>`;
+    bodyHtml += `<p><a href="${escapeHtml(eventUrl)}" style="color:#fafafa;">Vai all&apos;evento</a></p>`;
+  } else if (kind === "payment_confirmed") {
+    subject = `Pagamento ricevuto — ${escapeHtml(title)}`;
+    bodyHtml += `<p>Abbiamo registrato il pagamento per <strong>${escapeHtml(title)}</strong>. La tua iscrizione è <strong>confermata</strong>.</p>`;
+    if (startsAt) bodyHtml += `<p>Data: ${escapeHtml(startsAt)}</p>`;
+    bodyHtml += `<p><a href="${escapeHtml(eventUrl)}" style="color:#fafafa;">Apri scheda evento</a></p>`;
+  } else if (kind === "event_reminder_24h") {
+    subject = `Promemoria — ${escapeHtml(title)} domani`;
+    bodyHtml += `<p><strong>${escapeHtml(title)}</strong> in programma tra circa 24 ore.</p>`;
+    if (startsAt) bodyHtml += `<p>Data e ora: ${escapeHtml(startsAt)}</p>`;
     bodyHtml += `<p><a href="${escapeHtml(eventUrl)}" style="color:#fafafa;">Apri scheda evento</a></p>`;
   } else {
     subject = `Mana Nero — notifica (${escapeHtml(kind ?? "sconosciuto")})`;

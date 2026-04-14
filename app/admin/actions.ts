@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { userMeetsRole } from "@/lib/auth/roles";
+import { enqueueEventReminder24hScan } from "@/lib/comms/event-reminders";
 import { enqueueMessage } from "@/lib/comms/enqueue";
 import { runBookingAction } from "@/lib/domain/booking";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
@@ -75,6 +76,13 @@ export async function saveEvent(formData: FormData) {
   const endsAt = String(formData.get("ends_at") || "").trim();
   const capacity = Number.parseInt(String(formData.get("capacity") || "0"), 10);
   const priceDisplay = String(formData.get("price_display") || "").trim();
+  const priceCentsRaw = String(formData.get("price_cents") || "").trim();
+  const depositCentsRaw = String(formData.get("deposit_cents") || "").trim();
+  const currency = String(formData.get("currency") || "eur").trim().toLowerCase() || "eur";
+  const priceCents =
+    priceCentsRaw === "" ? null : Number.parseInt(priceCentsRaw, 10);
+  const depositCents =
+    depositCentsRaw === "" ? null : Number.parseInt(depositCentsRaw, 10);
   const categoryId = String(formData.get("category_id") || "").trim();
   const status = String(formData.get("status") || "draft").trim();
   const coverImagePathInput = String(formData.get("cover_image_path") || "").trim();
@@ -100,6 +108,15 @@ export async function saveEvent(formData: FormData) {
     ends_at: endsAt || null,
     capacity,
     price_display: priceDisplay || null,
+    price_cents:
+      priceCents != null && !Number.isNaN(priceCents) && priceCents >= 0
+        ? priceCents
+        : null,
+    deposit_cents:
+      depositCents != null && !Number.isNaN(depositCents) && depositCents >= 0
+        ? depositCents
+        : null,
+    currency: currency.length === 3 ? currency : "eur",
     category_id: categoryId ? categoryId : null,
     cover_image_path: uploadedCoverPath || coverImagePathInput || null,
     status,
@@ -288,15 +305,55 @@ export async function deleteEventCategory(formData: FormData) {
   redirect("/admin/categories?success=category_deleted");
 }
 
+export async function runEventReminderScan() {
+  await requireUserWithRole("staff");
+  try {
+    const result = await enqueueEventReminder24hScan();
+    revalidatePath("/admin/comms");
+    redirect(
+      `/admin/comms?events=${encodeURIComponent(String(result.eventsScanned))}&attempted=${encodeURIComponent(String(result.remindersAttempted))}`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "reminder_scan_failed";
+    redirect(`/admin/comms?error=${encodeURIComponent(message)}`);
+  }
+}
+
 export async function updateProductRequestStatus(formData: FormData) {
   const { supabase } = await requireUserWithRole("staff");
   const id = String(formData.get("id") || "").trim();
   const status = String(formData.get("status") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
+  const expectedRaw = String(formData.get("expected_fulfillment_at") || "").trim();
+  const stockNotifiedRaw = String(formData.get("stock_notified_at") || "").trim();
 
-  const allowed = ["new", "in_review", "fulfilled", "cancelled"] as const;
+  const allowed = [
+    "new",
+    "in_review",
+    "fulfilled",
+    "cancelled",
+    "awaiting_stock",
+  ] as const;
   if (!allowed.includes(status as (typeof allowed)[number])) {
     redirect("/admin/product-requests?error=invalid_status");
+  }
+
+  let expectedFulfillmentAt: string | null = null;
+  if (expectedRaw) {
+    const d = new Date(expectedRaw);
+    if (Number.isNaN(d.getTime())) {
+      redirect("/admin/product-requests?error=invalid_expected_fulfillment_at");
+    }
+    expectedFulfillmentAt = d.toISOString();
+  }
+
+  let stockNotifiedAt: string | null = null;
+  if (stockNotifiedRaw) {
+    const d = new Date(stockNotifiedRaw);
+    if (Number.isNaN(d.getTime())) {
+      redirect("/admin/product-requests?error=invalid_stock_notified_at");
+    }
+    stockNotifiedAt = d.toISOString();
   }
 
   const { error } = await supabase
@@ -304,6 +361,8 @@ export async function updateProductRequestStatus(formData: FormData) {
     .update({
       status,
       notes: notes || null,
+      expected_fulfillment_at: expectedFulfillmentAt,
+      stock_notified_at: stockNotifiedAt,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

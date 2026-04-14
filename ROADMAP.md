@@ -34,13 +34,13 @@ todos:
     status: completed
   - id: v2-event-payments
     content: "V2 (PRD §4.1): pagamenti/depositi evento, stati registration additivi"
-    status: in_progress
+    status: completed
   - id: v2-comms-automation
     content: "V2 (PRD §4.3): reminder, campagne, notifiche waitlist oltre outbox email base"
-    status: pending
+    status: completed
   - id: v2-product-preorders
     content: "V2 (PRD §4.4): preordini strutturati, stock alerts (estende product_requests)"
-    status: pending
+    status: completed
 ---
 
 # Piano V1 — Game Store (estensione dello starter Vercel + Supabase)
@@ -192,36 +192,43 @@ flowchart LR
 | RPC unica `event_registration_action`, RLS via `has_role`, outbox idempotente | Implementate |
 | Dominio `lib/domain/booking.ts`, `lib/comms/enqueue.ts`, worker batch `lib/comms/process-outbox.ts` | Implementate |
 | Route cron worker | `GET /api/cron/outbox` con `Authorization: Bearer` + `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) |
+| Cron scadenza pagamenti evento | `GET /api/cron/expire-pending-event-payments` (stessi secret; opz. `EVENT_PAYMENT_PENDING_EXPIRE_HOURS`) — vedi [`vercel.json`](vercel.json) |
+| Cron alert stock preordini | `GET /api/cron/product-stock-notifications` — accoda email `product_stock_available` per `awaiting_stock` in finestra ([`lib/comms/product-stock-notifications.ts`](lib/comms/product-stock-notifications.ts)); stessi Bearer secret |
 | UI pubblica, `/protected`, `/admin`, CSV partecipanti | Implementate |
-| Enum `pending_payment` / altre estensioni additive | Valore `pending_payment` aggiunto in migrazione dedicata; branch RPC e pagamenti in corso (`v2-event-payments` **in_progress**) |
-| Test automatici | `npm run test` (unit); `npm run smoke:test` (RPC remoto); `npm run test:e2e` (Playwright: home, eventi, news, giochi, contatti, reserve, community; prima volta `npx playwright install chromium`); con `E2E_STORAGE_STATE` anche [e2e/auth-events.spec.ts](e2e/auth-events.spec.ts); CI GitHub [`.github/workflows/ci.yml`](.github/workflows/ci.yml) su push/PR (`lint`, `test`, `build`) |
+| Pagamenti evento (Stripe + RPC) | Migrazione [`20260414120000_event_registration_payment_flow.sql`](supabase/migrations/20260414120000_event_registration_payment_flow.sql): `confirm_payment` / `expire_payment`, `book` → `pending_payment` se prezzo/deposito; webhook [`app/api/webhooks/stripe/route.ts`](app/api/webhooks/stripe/route.ts); checkout da [`app/events/actions.ts`](app/events/actions.ts) |
+| Enum `pending_payment` / estensioni additive | `pending_payment` su enum registrazione; operazioni RPC e UI allineate (`v2-event-payments` **completed** nel frontmatter) |
+| Comms automation (reminder 24h) | [`lib/comms/event-reminders.ts`](lib/comms/event-reminders.ts), cron [`app/api/cron/event-reminders/route.ts`](app/api/cron/event-reminders/route.ts), UI [`/admin/comms`](app/admin/comms/page.tsx), design [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md) |
+| Metriche outbox email (debug staff) | RPC `outbox_email_stats_for_staff` ([`supabase/migrations/20260416180000_outbox_email_stats_for_staff.sql`](supabase/migrations/20260416180000_outbox_email_stats_for_staff.sql)); aggregati `kind` × `status` in [`/admin/comms`](app/admin/comms/page.tsx) |
+| Preordini / stock (incremento) | Migrazione [`20260415120000_product_requests_preorder_fields.sql`](supabase/migrations/20260415120000_product_requests_preorder_fields.sql): `expected_fulfillment_at`, `stock_notified_at`, stato `awaiting_stock` |
+| Test automatici | `npm run test` (unit, inclusi payment checkout, event-reminders, dominio booking); `npm run verify:migrations` (elenco file SQL locale); `npm run smoke:test` (RPC remoto); `npm run verify:after-migrations` / `npm run verify:predeploy` (post-migrazioni e gate deploy); `npm run test:e2e` (Playwright); CI [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 
-**Gap operativo:** le migrazioni vanno applicate al **progetto Supabase remoto** usato da `.env.local` (CLI `supabase db push` o SQL editor). Il codice nel repo non sostituisce questo passo.
+**Gap operativo (ricorrente):** ogni modifica in [`supabase/migrations/`](supabase/migrations/) va applicata al progetto Supabase remoto usato in prod/staging (CLI `supabase db push` o SQL editor). Dopo il push: **`npm run verify:after-migrations`** (stesso stack di `verify:supabase` + `smoke:test`). Il solo merge nel repo non aggiorna Postgres remoto.
 
 ---
 
 ## Deploy database e smoke test
 
 1. **Variabili:** copia [.env.example](.env.example) in `.env.local` e imposta almeno `NEXT_PUBLIC_SUPABASE_URL`, chiave anon/publishable, `NEXT_PUBLIC_SITE_URL` per redirect coerenti.
-2. **Migrazioni:** applica in ordine i file in `supabase/migrations/` al progetto collegato (documentazione Supabase: *Database migrations*).
+2. **Migrazioni:** applica in ordine i file in `supabase/migrations/` al progetto collegato (documentazione Supabase: *Database migrations*). Dalla root: `npm run verify:migrations` per elencare i file locali da applicare; dopo `supabase db push`: `npm run verify:after-migrations`.
 3. **Controllo rapido:** dalla root esegui `npm run verify:supabase` — verifica raggiungibilità REST e presenza tabella `events`.
 4. **Smoke test (automatico o manuale):**
-   - **Automatico:** con `SUPABASE_SERVICE_ROLE_KEY` + URL/anon in `.env.local`, esegui `npm run smoke:test`. Senza `SMOKE_TEST_EMAIL` / `SMOKE_TEST_PASSWORD` viene creato ed eliminato un utente effimero; altrimenti si riusa l’account indicato.
-   - **Manuale (UI):** registrazione / login (Turnstile se attivo); evento `published`; da `/events` prova `book` e `cancel`; promuovi un utente a `staff` (SQL o CRM); in `/admin/events/...` check-in e download CSV partecipanti.
-5. **Email da outbox:** configurare `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in produzione; per il worker impostare `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) — la route `GET /api/cron/outbox` accetta `Authorization: Bearer` con uno dei due. In deploy su Vercel è incluso [`vercel.json`](vercel.json) con cron ogni 15 minuti sul path del worker (allinea il secret nel progetto Vercel). Senza cron, le righe `email` restano in `pending` finché il worker non gira.
+   - **Automatico:** con `SUPABASE_SERVICE_ROLE_KEY` + URL/anon in `.env.local`, esegui `npm run smoke:test`. Senza `SMOKE_TEST_EMAIL` / `SMOKE_TEST_PASSWORD` viene creato ed eliminato un utente effimero; altrimenti si riusa l’account indicato. Con `SMOKE_TEST_EVENT_PAYMENTS=1` viene anche testato `pending_payment` → `confirm_payment` (nessuna carta reale).
+   - **Manuale (UI):** registrazione / login (Turnstile se attivo); evento `published`; da `/events` prova `book` e `cancel`; con evento a pagamento (`price_cents` / `deposit_cents` in admin) verifica checkout Stripe e conferma via webhook; promuovi un utente a `staff` (SQL o CRM); in `/admin/events/...` check-in e download CSV partecipanti.
+5. **Email da outbox:** configurare `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in produzione; per il worker impostare `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) — le route `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` accettano `Authorization: Bearer` con uno dei due. In deploy su Vercel è incluso [`vercel.json`](vercel.json) con cron (outbox ogni 15 min; scadenza pagamenti pending ogni ora; reminder eventi ogni 6 ore; alert stock preordini giornaliero). Senza cron outbox, le righe `email` restano in `pending` finché il worker non gira.
+6. **Stripe (eventi a pagamento):** in Vercel imposta `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; in Stripe Dashboard aggiungi endpoint `https://<dominio-produzione>/api/webhooks/stripe` con evento `checkout.session.completed`. Vedi [.env.example](.env.example) e [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md).
 
 ### Checklist deploy produzione (Vercel / Supabase)
 
 Usala dopo il primo deploy o ad ogni cambio di dominio / chiavi.
 
-- [ ] **Vercel → Environment variables:** stessi nomi di [.env.example](.env.example) necessari al runtime (`NEXT_PUBLIC_*`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_*`, `OUTBOX_CRON_SECRET` o `CRON_SECRET`, ecc.).
+- [ ] **Vercel → Environment variables:** stessi nomi di [.env.example](.env.example) necessari al runtime (`NEXT_PUBLIC_*`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_*`, `OUTBOX_CRON_SECRET` o `CRON_SECRET`, `STRIPE_*` se usi pagamenti evento, ecc.).
 - [ ] **Supabase → Authentication → URL configuration:** Site URL e redirect consentiti puntano al dominio **produzione** (non `localhost`), in linea con `NEXT_PUBLIC_SITE_URL`.
-- [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox` risponda `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
+- [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` rispondano `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
 - [ ] **Migrazioni:** l’istanza Postgres collegata al progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente).
 - [ ] **Post-deploy manuale:** apri sito pubblico, `/events`, login magic link reale; da staff `/admin` e un evento; oppure `npm run verify:supabase` / `npm run smoke:test` contro l’URL Supabase di produzione solo se usi variabili che puntano a quel progetto.
 - [ ] **CI:** su ogni PR verifica che il workflow **CI** su GitHub sia verde (lint, unit test, build con env placeholder); in locale esegui `npm run ci` prima del push.
 
-**Esecuzione guidata:** runbook passo-passo in [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md); checklist spuntabile [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md). Con env verso l’istanza da validare: `npm run verify:release-stack` (REST + smoke RPC); per controllo strict tipo produzione: `npm run verify:deploy`.
+**Esecuzione guidata:** runbook passo-passo in [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md); checklist spuntabile [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md). Con env verso l’istanza da validare: `npm run verify:release-stack` (REST + smoke RPC); dopo migrazioni sul remoto: `npm run verify:after-migrations`; passaggio unico release + gate strict opzionale: `npm run verify:predeploy`; per controllo strict solo env: `npm run verify:deploy`; comandi cron: `npm run verify:cron-hints`.
 
 ---
 
@@ -236,9 +243,20 @@ Priorità suggerita: monetizzazione eventi e automazione comunicazioni prima del
 | §4.4 | Preordini, quantità, priorità, alert arrivo merce | `v2-product-preorders` |
 | §4.2 / §4.5 | CRM avanzato, analytics dashboard | da spezzare in todo quando si inizia |
 
-I todo `v2-*` nel frontmatter sono **pending** finché non si apre uno sprint V2; aggiorna `status` quando completi un incremento.
+I todo `v2-comms-automation` e `v2-product-preorders` sono **completed** per l’incremento base in repo (reminder 24h + campi preordine); estensioni (campagne segmentate, alert stock automatici, waitlist strutturata oltre email, analytics avanzate) restano backlog incrementale. **Vista metriche outbox (primo slice):** RPC `outbox_email_stats_for_staff` e tabella in `/admin/comms` (aggregati per `kind` e `status` sul canale email).
 
-**Primo incremento consigliato:** `v2-event-payments` (allinea DB additivo: colonne già presenti su `events` / `event_registrations` per pagamenti; nuovo stato enum solo con migrazione; **nessuna** seconda RPC booking: estensioni alla RPC esistente o flusso pagamento esterno + stato — da decidere in design review prima del codice). Bozza di design e checklist pre-codice: [docs/design-v2-event-payments.md](docs/design-v2-event-payments.md).
+### Prossimo incremento backlog (ordine consigliato)
+
+1. **Alert stock automatici** verso outbox (PRD §4.4): **primo slice in repo** — cron [`GET /api/cron/product-stock-notifications`](app/api/cron/product-stock-notifications/route.ts) (pianificazione in [`vercel.json`](vercel.json)), logica [`lib/comms/product-stock-notifications.ts`](lib/comms/product-stock-notifications.ts), email `product_stock_available` nel worker [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts). Estensioni possibili: criteri di finestra diversi, notifica staff, annullamento automatico.
+2. **Campagne segmentate** su outbox (PRD §4.3): enqueue batch, `idempotency_key` stabile per `campaign:*` (vedi [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md)).
+3. **QR check-in** dedicato (PRD §4.1): oggi solo `staff_check_in` via RPC da UI staff.
+4. **CRM §4.2 / analytics §4.5:** spezzare in todo/epic quando si apre il lavoro.
+
+**Incremento `v2-event-payments` (fatto nel repo):** migrazione additiva su `event_registration_action` (`confirm_payment`, `expire_payment`, `book` con `pending_payment`); Stripe Checkout + webhook; cron scadenza; UI e outbox. Design: [docs/design-v2-event-payments.md](docs/design-v2-event-payments.md).
+
+**Incremento `v2-comms-automation` (primo slice):** reminder ~24h via outbox (`event_reminder_24h`), cron dedicato, pagina staff `/admin/comms`, worker email esteso. Design: [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md).
+
+**Incremento `v2-product-preorders` (primo slice):** colonne `expected_fulfillment_at`, `stock_notified_at` e stato enum `awaiting_stock` su `product_reservation_requests`; UI staff in `/admin/product-requests` per stato, note e date (vuoto = azzera).
 
 **Criteri di accettazione (bozza) per `v2-event-payments`:**
 
@@ -253,7 +271,7 @@ I todo `v2-*` nel frontmatter sono **pending** finché non si apre uno sprint V2
 - Nessun invio duplicato: riuso **outbox** con `idempotency_key` stabile per ogni tipo di messaggio (reminder, campagna, waitlist).
 - Worker o cron esistente esteso (stesso path o job dedicato) con canali aggiuntivi solo dove già previsti dall’enum `outbox_channel` o con migrazione enum **additiva**.
 - Staff non invia messaggi “a mano” bypassando outbox per flussi che devono essere tracciati; UI admin solo enqueue / template.
-- Metriche minime: conteggio `sent` / `failed` consultabile (SQL o vista) per debug.
+- Metriche minime: conteggio `sent` / `failed` consultabile (SQL o vista) per debug — **primo slice in repo:** RPC staff `outbox_email_stats_for_staff` e riepilogo in [`/admin/comms`](app/admin/comms/page.tsx) (per canale `email`, raggruppamento per `payload->>'kind'` e `status`). Restano metriche avanzate / campagne / dashboard unificata come estensioni.
 
 **Criteri di accettazione (bozza) per `v2-product-preorders`:**
 
@@ -266,6 +284,6 @@ I todo `v2-*` nel frontmatter sono **pending** finché non si apre uno sprint V2
 Da tenere fuori dal codice ma dentro la routine del progetto:
 
 - **Log:** Vercel (runtime / cron) e Supabase (API, Auth, Postgres) per errori 5xx, timeout outbox, spike su `event_registration_action`.
-- **Segreti:** rotazione periodica di `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` / `OUTBOX_CRON_SECRET`, chiavi Resend; aggiornare env su Vercel e `.env.local` locale.
+- **Segreti:** rotazione periodica di `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` / `OUTBOX_CRON_SECRET`, chiavi Resend e Stripe (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`); aggiornare env su Vercel e `.env.local` locale.
 - **Backup:** policy backup / PITR del progetto Supabase in linea con il rischio accettato.
 - **Locale vs CI:** prima di una PR esegui `npm run ci` (stesso ordine della [CI GitHub](.github/workflows/ci.yml): lint, test, build). Il build in CI usa URL Supabase placeholder; in locale `next build` usa `.env.local` se presente.

@@ -23,6 +23,9 @@ export type EventRow = {
 export type EventDetailRow = EventRow & {
   created_at?: string;
   updated_at?: string;
+  price_cents: number | null;
+  deposit_cents: number | null;
+  currency: string | null;
 };
 
 export type EventRegistrationRow = {
@@ -78,10 +81,12 @@ export type ProductRequestRow = {
   product_name: string;
   category: string | null;
   notes: string | null;
-  status: "new" | "in_review" | "fulfilled" | "cancelled";
+  status: "new" | "in_review" | "fulfilled" | "cancelled" | "awaiting_stock";
   quantity: number | null;
   desired_price: number | null;
   priority_flag?: boolean;
+  expected_fulfillment_at?: string | null;
+  stock_notified_at?: string | null;
   created_at: string;
 };
 
@@ -138,7 +143,7 @@ export async function getEventBySlug(
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id, title, slug, cover_image_path, description, game_type, starts_at, ends_at, capacity, price_display, status, created_at, updated_at, event_categories(name, slug)",
+      "id, title, slug, cover_image_path, description, game_type, starts_at, ends_at, capacity, price_display, price_cents, deposit_cents, currency, status, created_at, updated_at, event_categories(name, slug)",
     )
     .eq("slug", slug)
     .eq("status", "published")
@@ -227,7 +232,7 @@ export async function getUserProductRequests(
   const { data, error } = await supabase
     .from("product_reservation_requests")
     .select(
-      "id, product_name, category, notes, status, quantity, desired_price, priority_flag, created_at",
+      "id, product_name, category, notes, status, quantity, desired_price, priority_flag, expected_fulfillment_at, stock_notified_at, created_at",
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
@@ -242,7 +247,9 @@ export async function getEventRegistrationsForStaff(
 ) {
   const { data, error } = await supabase
     .from("event_registrations")
-    .select("id, event_id, user_id, status, waitlist_position, created_at")
+    .select(
+      "id, event_id, user_id, status, waitlist_position, created_at, payment_intent_id, payment_status, paid_at",
+    )
     .eq("event_id", eventId)
     .order("created_at", { ascending: true });
 
@@ -255,6 +262,9 @@ export async function getEventRegistrationsForStaff(
     status: string;
     waitlist_position: number | null;
     created_at: string;
+    payment_intent_id: string | null;
+    payment_status: string | null;
+    paid_at: string | null;
   }>;
 
   const userIds = [...new Set(registrations.map((item) => item.user_id))];
@@ -346,7 +356,7 @@ export async function getProductRequestsForStaff(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("product_reservation_requests")
     .select(
-      "id, user_id, product_name, category, notes, status, quantity, desired_price, priority_flag, created_at",
+      "id, user_id, product_name, category, notes, status, quantity, desired_price, priority_flag, expected_fulfillment_at, stock_notified_at, created_at",
     )
     .order("created_at", { ascending: false });
 
@@ -521,6 +531,7 @@ const productRequestStatusLabels: Record<string, string> = {
   in_review: "In revisione",
   fulfilled: "Completata",
   cancelled: "Annullata",
+  awaiting_stock: "In attesa merce",
 };
 
 export function formatProductRequestStatus(status: string) {

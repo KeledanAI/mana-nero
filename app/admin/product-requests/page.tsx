@@ -1,8 +1,14 @@
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { formatDateTime, getProductRequestsForStaff } from "@/lib/gamestore/data";
+import {
+  formatDateTime,
+  formatForDatetimeLocalInput,
+  formatProductRequestStatus,
+  getProductRequestsForStaff,
+} from "@/lib/gamestore/data";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
 import { updateProductRequestStatus } from "../actions";
 
@@ -25,7 +31,11 @@ export default async function AdminProductRequestsPage({ searchParams }: PagePro
         <CardHeader>
           <CardTitle>Richieste prodotto</CardTitle>
           <p className="text-sm font-normal text-foreground/65">
-            Aggiorna stato e note interne. I clienti vedono le proprie richieste nell’area utente.
+            Aggiorna stato e note interne. I clienti vedono le proprie richieste nell’area utente. Per lo stato{" "}
+            <code className="rounded bg-secondary px-1 text-xs">awaiting_stock</code>, se è impostata una{" "}
+            <strong>consegna prevista</strong> nel passato (o è vuota), il cron giornaliero{" "}
+            <code className="rounded bg-secondary px-1 text-xs">/api/cron/product-stock-notifications</code> può
+            accodare un&apos;email outbox e valorizzare <strong>Notifica arrivo merce</strong> automaticamente.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -50,7 +60,7 @@ export default async function AdminProductRequestsPage({ searchParams }: PagePro
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">{request.status}</Badge>
+                    <Badge variant="outline">{formatProductRequestStatus(request.status)}</Badge>
                     {request.priority_flag ? <Badge variant="secondary">Priorità</Badge> : null}
                   </div>
                 </div>
@@ -59,6 +69,12 @@ export default async function AdminProductRequestsPage({ searchParams }: PagePro
                   {request.quantity != null ? <p>Quantità: {request.quantity}</p> : null}
                   {request.desired_price != null ? <p>Prezzo desiderato: {request.desired_price} €</p> : null}
                   {request.notes ? <p>Note: {request.notes}</p> : null}
+                  {request.expected_fulfillment_at ? (
+                    <p>Consegna prevista: {formatDateTime(request.expected_fulfillment_at)}</p>
+                  ) : null}
+                  {request.stock_notified_at ? (
+                    <p>Notifica arrivo merce: {formatDateTime(request.stock_notified_at)}</p>
+                  ) : null}
                 </div>
                 <form action={updateProductRequestStatus} className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2">
                   <input type="hidden" name="id" value={request.id} />
@@ -74,6 +90,7 @@ export default async function AdminProductRequestsPage({ searchParams }: PagePro
                       <option value="in_review">in_review</option>
                       <option value="fulfilled">fulfilled</option>
                       <option value="cancelled">cancelled</option>
+                      <option value="awaiting_stock">awaiting_stock</option>
                     </select>
                   </div>
                   <div className="grid gap-2 sm:col-span-2">
@@ -86,6 +103,37 @@ export default async function AdminProductRequestsPage({ searchParams }: PagePro
                       defaultValue={request.notes ?? ""}
                     />
                   </div>
+                  <div className="grid gap-2 sm:grid-cols-2 sm:col-span-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor={`expected-${request.id}`}>Consegna prevista (opzionale)</Label>
+                      <Input
+                        id={`expected-${request.id}`}
+                        name="expected_fulfillment_at"
+                        type="datetime-local"
+                        defaultValue={
+                          request.expected_fulfillment_at
+                            ? formatForDatetimeLocalInput(request.expected_fulfillment_at)
+                            : ""
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`stock-${request.id}`}>Notifica arrivo merce (opzionale)</Label>
+                      <Input
+                        id={`stock-${request.id}`}
+                        name="stock_notified_at"
+                        type="datetime-local"
+                        defaultValue={
+                          request.stock_notified_at
+                            ? formatForDatetimeLocalInput(request.stock_notified_at)
+                            : ""
+                        }
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-foreground/60 sm:col-span-2">
+                    Lascia vuoti i campi data per azzerare consegna prevista / notifica merce al salvataggio.
+                  </p>
                   <SubmitButton className="w-fit sm:col-span-2" pendingLabel="Aggiornamento...">
                     Salva stato
                   </SubmitButton>

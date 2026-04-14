@@ -27,7 +27,30 @@ describe("runBookingAction", () => {
       p_operation: "book",
       p_event_id: "evt-1",
       p_registration_id: null,
+      p_payment_intent_id: null,
     });
+  });
+
+  it("passes payment_intent_id for confirm_payment", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const supabase = {
+      rpc(name: string, args: Record<string, unknown>) {
+        calls.push({ name, args });
+        return Promise.resolve({
+          data: { ok: true, status: "confirmed" },
+          error: null,
+        });
+      },
+    };
+
+    await runBookingAction(supabase as never, "confirm_payment", {
+      registrationId: "reg-1",
+      paymentIntentId: "pi_abc",
+    });
+
+    assert.equal(calls[0]?.args.p_operation, "confirm_payment");
+    assert.equal(calls[0]?.args.p_registration_id, "reg-1");
+    assert.equal(calls[0]?.args.p_payment_intent_id, "pi_abc");
   });
 
   it("throws when RPC returns error", async () => {

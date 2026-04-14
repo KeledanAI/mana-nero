@@ -11,8 +11,9 @@ Ordine consigliato dopo il primo deploy o a ogni cambio di dominio o chiavi. All
 ## 1. Database Supabase (prima del traffico)
 
 1. Collega la CLI al progetto remoto: `supabase link --project-ref <ref>` (vedi [Supabase CLI](https://supabase.com/docs/guides/cli)).
-2. Applica migrazioni: `supabase db push` (o pipeline CI che esegue le migrazioni sull’istanza prod).
-3. Verifica REST: con URL/chiave **di produzione** in env, dalla root:
+2. Elenco file migrazioni locali (controllo pre-push): `npm run verify:migrations`.
+3. Applica migrazioni: `supabase db push` (o pipeline CI che esegue le migrazioni sull’istanza prod).
+4. Verifica REST: con URL/chiave **di produzione** in env, dalla root:
    - `npm run verify:supabase`
    - opzionale RPC: `npm run smoke:test` (richiede `SUPABASE_SERVICE_ROLE_KEY` e utente/evento coerenti).
 
@@ -34,6 +35,9 @@ Copia i nomi da [.env.example](../.env.example). Minimo tipico in **Production**
 | `CRON_SECRET` **oppure** `OUTBOX_CRON_SECRET` | Vercel Cron invia `Authorization: Bearer` con `CRON_SECRET` se configurato; la route accetta entrambi ([`app/api/cron/outbox/route.ts`](../app/api/cron/outbox/route.ts)) |
 | `RESEND_API_KEY` (+ `RESEND_FROM` se serve) | Email transazionali da outbox |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Se usi captcha su login (allineare secret in Supabase Auth) |
+| `STRIPE_SECRET_KEY` | Solo server; creazione sessioni Checkout per eventi con `price_cents` / `deposit_cents` |
+| `STRIPE_WEBHOOK_SECRET` | Verifica firma su `POST /api/webhooks/stripe` |
+| `EVENT_PAYMENT_PENDING_EXPIRE_HOURS` | Opzionale; ore prima che il cron scada una `pending_payment` (default 24) |
 
 Dopo aver salvato le variabili, ridistribuisci (redeploy) se necessario.
 
@@ -42,7 +46,34 @@ Dopo aver salvato le variabili, ridistribuisci (redeploy) se necessario.
 - In repo: [`vercel.json`](../vercel.json) schedula `GET /api/cron/outbox` ogni 15 minuti.
 - In Vercel: imposta `CRON_SECRET` (consigliato) **identico** a quanto la piattaforma usa per le chiamate cron verso la route (vedi documentazione Vercel Cron + `CRON_SECRET`).
 - Post-deploy: **Logs** su Vercel → cerca richieste a `/api/cron/outbox` con risposta **200** (non 401/503).
+- Per generare da terminale i comandi verso le route cron GET (stesso Bearer del deploy): `npm run verify:cron-hints` (legge `.env.local` o `DEPLOY_ENV_FILE`). Se in locale `NEXT_PUBLIC_SITE_URL` è `http://localhost:3000`, imposta **`CRON_VERIFY_SITE_URL`** (file env o variabile shell) all’URL HTTPS di produzione o preview, così i curl puntano al deploy giusto senza cambiare l’URL usato dal dev server.
 - In Supabase **Table Editor** (o SQL): su `communication_outbox`, messaggi `email` dovrebbero passare a `sent` quando `RESEND_API_KEY` è valida.
+
+## 4b. Cron reminder eventi (~24h)
+
+- In repo: [`vercel.json`](../vercel.json) schedula `GET /api/cron/event-reminders` ogni 6 ore.
+- Stessi secret Bearer di §4; accoda righe `email` in `communication_outbox` con `kind` `event_reminder_24h` (idempotenza su chiave fissa).
+- Test manuale staff: pagina [`/admin/comms`](../app/admin/comms/page.tsx) → “Esegui scan reminder 24h ora”.
+
+## 4c. Cron scadenza pagamenti evento (`pending_payment`)
+
+- In repo: [`vercel.json`](../vercel.json) schedula anche `GET /api/cron/expire-pending-event-payments` (orario).
+- Stessi secret Bearer di §4 (`CRON_SECRET` / `OUTBOX_CRON_SECRET`).
+- Post-deploy: in log, risposta **200** con body `{ "expired": n, "errors": m }` (valori dipendono da righe scadute).
+
+## 4d. Stripe (webhook + dashboard)
+
+1. In **Stripe Dashboard** → Developers → Webhooks → **Add endpoint**: URL `https://<tuo-dominio-produzione>/api/webhooks/stripe`.
+2. Seleziona almeno l’evento **`checkout.session.completed`** (il codice conferma il pagamento solo su questo tipo).
+3. Copia il **Signing secret** in Vercel come `STRIPE_WEBHOOK_SECRET`.
+4. Assicurati che `NEXT_PUBLIC_SITE_URL` in produzione coincida con l’origine usata negli URL di successo/annullamento del Checkout.
+
+## 4e. Cron alert stock preordini (`awaiting_stock`)
+
+- In repo: [`vercel.json`](../vercel.json) schedula `GET /api/cron/product-stock-notifications` (una volta al giorno, UTC).
+- Stessi secret Bearer di §4 (`CRON_SECRET` / `OUTBOX_CRON_SECRET`).
+- Accoda messaggi `email` con `kind` `product_stock_available` per richieste in `awaiting_stock` senza `stock_notified_at`, con `user_id` e finestra su `expected_fulfillment_at` (vedi [`lib/comms/product-stock-notifications.ts`](../lib/comms/product-stock-notifications.ts)).
+- Post-deploy: in log, risposta **200** con body `{ "scanned", "enqueued", "marked", "errors" }`.
 
 ## 5. Verifica variabili (locale mirror di prod)
 
@@ -58,13 +89,13 @@ Catena REST + smoke RPC (stesso target Supabase dell’env):
 npm run verify:release-stack
 ```
 
-Equivale a `verify:supabase` poi `smoke:test`. Lista spuntabile lato dashboard: [deploy-operator-checklist.md](./deploy-operator-checklist.md).
+Equivale a `verify:supabase` poi `smoke:test`. Dopo `supabase db push` sul remoto: `npm run verify:after-migrations` (stessa catena). Passaggio unico che esegue anche `verify:deploy` e, se fallisce per env dev, stampa solo i promemoria manuali: `npm run verify:predeploy`. Lista spuntabile lato dashboard: [deploy-operator-checklist.md](./deploy-operator-checklist.md).
 
 ## 6. Post-deploy manuale (UI)
 
 - Homepage e `/events` caricano.
 - Magic link (o login) con dominio reale.
-- Utente **staff**: `/admin`, evento, check-in, CSV partecipanti.
+- Utente **staff**: `/admin`, evento, check-in, CSV partecipanti; `/admin/comms` per scan reminder; per pagamenti, verifica campi prezzo/deposito su evento e stato partecipanti.
 
 ## 7. CI GitHub
 
@@ -72,4 +103,4 @@ Su ogni PR: workflow verde (lint, test, build). In locale prima del push: `npm r
 
 ---
 
-**Sicurezza:** non committare `.env.local` con segreti prod; ruotare `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` / `OUTBOX_CRON_SECRET` e chiavi Resend se esposte.
+**Sicurezza:** non committare `.env.local` con segreti prod; ruotare `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` / `OUTBOX_CRON_SECRET`, chiavi Resend e segreti Stripe se esposte.

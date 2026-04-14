@@ -66,6 +66,8 @@ function main() {
   const cronSecret =
     (env.CRON_SECRET || "").trim() || (env.OUTBOX_CRON_SECRET || "").trim();
   const resend = (env.RESEND_API_KEY || "").trim();
+  const stripeSecret = (env.STRIPE_SECRET_KEY || "").trim();
+  const stripeWebhook = (env.STRIPE_WEBHOOK_SECRET || "").trim();
 
   const errors = [];
 
@@ -97,12 +99,22 @@ function main() {
     }
     if (!cronSecret) {
       errors.push(
-        "[--production] Imposta CRON_SECRET o OUTBOX_CRON_SECRET per il worker /api/cron/outbox.",
+        "[--production] Imposta CRON_SECRET o OUTBOX_CRON_SECRET per le route GET /api/cron/outbox, expire-pending-event-payments, event-reminders e product-stock-notifications.",
       );
     }
     if (!resend) {
       errors.push(
         "[--production] RESEND_API_KEY richiesta se in produzione devi inviare email dall’outbox.",
+      );
+    }
+    if (stripeSecret && !stripeWebhook) {
+      errors.push(
+        "[--production] STRIPE_WEBHOOK_SECRET mancante: il webhook Stripe non potrà verificare le firme.",
+      );
+    }
+    if (!stripeSecret && stripeWebhook) {
+      errors.push(
+        "[--production] STRIPE_SECRET_KEY mancante: non è possibile creare sessioni Checkout.",
       );
     }
   } else {
@@ -120,6 +132,16 @@ function main() {
     if (siteUrl && (lower.includes("localhost") || lower.includes("127.0.0.1"))) {
       console.warn(
         "⚠ NEXT_PUBLIC_SITE_URL punta a localhost: ok per dev, non per produzione (allinea Supabase Site URL).",
+      );
+    }
+    if (stripeSecret && !stripeWebhook) {
+      console.warn(
+        "⚠ STRIPE_WEBHOOK_SECRET assente: in produzione configura anche il webhook (vedi docs/deploy-production-runbook.md).",
+      );
+    }
+    if (!stripeSecret && stripeWebhook) {
+      console.warn(
+        "⚠ STRIPE_SECRET_KEY assente ma STRIPE_WEBHOOK_SECRET presente: Checkout non funzionerà.",
       );
     }
   }

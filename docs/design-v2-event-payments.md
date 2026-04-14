@@ -80,4 +80,6 @@ Da aggiungere come branch nella **stessa** `event_registration_action` (firma es
 - [x] Migrazione enum additiva — applicata in repo (`pending_payment`); colonne pagamento su `event_registrations` in PR successiva.
 - [x] Wireframe minimo — testi stato in UI: etichetta `pending_payment` in [`lib/gamestore/data.ts`](../lib/gamestore/data.ts) (`formatRegistrationStatus`); CTA pagamento e schermate staff in PR dedicate.
 
-Il todo YAML `v2-event-payments` in [ROADMAP.md](../ROADMAP.md) è **`in_progress`**. Prossime PR consigliate: (1) estensione `event_registration_action` + tipi dominio; (2) Stripe webhook + env; (3) UI `/events` e admin.
+**Stato implementazione (repo):** migrazione [`20260414120000_event_registration_payment_flow.sql`](../supabase/migrations/20260414120000_event_registration_payment_flow.sql) (RPC `confirm_payment` / `expire_payment`, `paid_at`, indice attivo con `pending_payment`, promozione waitlist a pagamento → `pending_payment`); dominio [`lib/domain/booking.ts`](../lib/domain/booking.ts); Stripe Checkout + [`app/api/webhooks/stripe/route.ts`](../app/api/webhooks/stripe/route.ts); cron [`app/api/cron/expire-pending-event-payments/route.ts`](../app/api/cron/expire-pending-event-payments/route.ts); UI evento e form admin prezzo/deposito/valuta.
+
+Il todo YAML `v2-event-payments` in [ROADMAP.md](../ROADMAP.md) è **`completed`** per questo incremento. Estensioni future (es. `staff_mark_paid`, reminder §4.1) possono restare additivi sulla stessa RPC o in `v2-comms-automation`.

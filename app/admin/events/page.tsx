@@ -33,7 +33,7 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
         ? supabase
             .from("events")
             .select(
-              "id, title, slug, description, game_type, starts_at, ends_at, capacity, price_display, status, category_id, cover_image_path",
+              "id, title, slug, description, game_type, starts_at, ends_at, capacity, price_display, price_cents, deposit_cents, currency, status, category_id, cover_image_path",
             )
             .eq("id", editId)
             .maybeSingle()
@@ -144,6 +144,51 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
                   <option value="published">published</option>
                   <option value="cancelled">cancelled</option>
                 </select>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-2">
+                <Label htmlFor="price_cents">Prezzo (centesimi, Stripe)</Label>
+                <Input
+                  id="price_cents"
+                  name="price_cents"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="es. 1500 = 15 EUR"
+                  defaultValue={
+                    editingEvent?.price_cents != null ? String(editingEvent.price_cents) : ""
+                  }
+                />
+                <p className="text-xs text-foreground/60">
+                  Se &gt; 0 (o deposito &gt; 0), la prenotazione resta in attesa di pagamento fino al checkout.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="deposit_cents">Deposito (centesimi)</Label>
+                <Input
+                  id="deposit_cents"
+                  name="deposit_cents"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="opzionale, ha priorità sul prezzo"
+                  defaultValue={
+                    editingEvent?.deposit_cents != null
+                      ? String(editingEvent.deposit_cents)
+                      : ""
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="currency">Valuta ISO</Label>
+                <Input
+                  id="currency"
+                  name="currency"
+                  maxLength={3}
+                  placeholder="eur"
+                  defaultValue={editingEvent?.currency ?? "eur"}
+                />
               </div>
             </div>
             <div className="grid gap-2">

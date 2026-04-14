@@ -7,6 +7,7 @@
  * Se mancano, lo script crea un utente effimero (email random) e lo elimina a fine run.
  *
  * Uso: npm run smoke:test
+ * Opzionale da terminale: SMOKE_TEST_EVENT_PAYMENTS=1 (anche senza riga in .env.local) per il ramo RPC pagamenti.
  */
 import { randomUUID } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -37,8 +38,27 @@ function loadEnvLocal() {
   return env;
 }
 
+function hintForPostgrestRpcError(message) {
+  const msg = message ?? "";
+  if (msg.includes("Could not find the function")) {
+    return (
+      `${msg}\n\nSuggerimento: le migrazioni SQL del repo potrebbero non essere ancora applicate al progetto Supabase usato in .env.local. ` +
+      `Esegui \`supabase db push\` (o la pipeline equivalente), attendi il reload dello schema PostgREST, poi riesegui \`npm run smoke:test\`.`
+    );
+  }
+  return msg;
+}
+
+function rpcError(label, err) {
+  return new Error(hintForPostgrestRpcError(`${label}: ${err?.message ?? String(err)}`));
+}
+
 async function main() {
   const env = loadEnvLocal();
+  // Consente `SMOKE_TEST_EVENT_PAYMENTS=1` da shell senza duplicare la riga in .env.local
+  if (process.env.SMOKE_TEST_EVENT_PAYMENTS) {
+    env.SMOKE_TEST_EVENT_PAYMENTS = process.env.SMOKE_TEST_EVENT_PAYMENTS;
+  }
   const url = (env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const anonKey =
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -160,9 +180,10 @@ async function main() {
     p_operation: "book",
     p_event_id: eventId,
     p_registration_id: null,
+    p_payment_intent_id: null,
   });
   if (bookErr) {
-    throw new Error(`book: ${bookErr.message}`);
+    throw rpcError("book", bookErr);
   }
   console.log("   →", bookData);
 
@@ -171,9 +192,10 @@ async function main() {
     p_operation: "cancel",
     p_event_id: eventId,
     p_registration_id: null,
+    p_payment_intent_id: null,
   });
   if (cancelErr) {
-    throw new Error(`cancel: ${cancelErr.message}`);
+    throw rpcError("cancel", cancelErr);
   }
   console.log("   →", cancelData);
 
@@ -182,9 +204,10 @@ async function main() {
     p_operation: "book",
     p_event_id: eventId,
     p_registration_id: null,
+    p_payment_intent_id: null,
   });
   if (book2Err) {
-    throw new Error(`book2: ${book2Err.message}`);
+    throw rpcError("book2", book2Err);
   }
 
   const { data: regRow, error: regErr } = await userClient
@@ -214,9 +237,10 @@ async function main() {
     p_operation: "staff_check_in",
     p_event_id: null,
     p_registration_id: regRow.id,
+    p_payment_intent_id: null,
   });
   if (checkErr) {
-    throw new Error(`staff_check_in: ${checkErr.message}`);
+    throw rpcError("staff_check_in", checkErr);
   }
   console.log("   →", checkData);
 
@@ -248,6 +272,73 @@ async function main() {
     .from("profiles")
     .update({ role: "customer", updated_at: new Date().toISOString() })
     .eq("id", userId);
+
+  if ((env.SMOKE_TEST_EVENT_PAYMENTS || "").trim() === "1") {
+    console.log("11b) Opzionale: evento a deposito → pending_payment → confirm_payment (service_role)…");
+    const paidSlug = `smoke-pay-${Date.now()}`;
+    const paidStarts = new Date(Date.now() + 9 * 86400000).toISOString();
+    const { data: paidEvt, error: paidInsErr } = await admin
+      .from("events")
+      .insert({
+        title: "Smoke paid (auto)",
+        slug: paidSlug,
+        status: "published",
+        starts_at: paidStarts,
+        capacity: 15,
+        deposit_cents: 100,
+        price_cents: null,
+        currency: "eur",
+        description: "Creato da smoke per pagamenti RPC",
+      })
+      .select("id")
+      .single();
+    if (paidInsErr || !paidEvt) {
+      throw new Error(`Insert evento pagato: ${paidInsErr?.message ?? "unknown"}`);
+    }
+    await admin.from("event_registrations").delete().eq("event_id", paidEvt.id).eq("user_id", userId);
+
+    const { data: bookPay, error: bookPayErr } = await userClient.rpc("event_registration_action", {
+      p_operation: "book",
+      p_event_id: paidEvt.id,
+      p_registration_id: null,
+      p_payment_intent_id: null,
+    });
+    if (bookPayErr) {
+      throw rpcError("book paid event", bookPayErr);
+    }
+    if (bookPay?.status !== "pending_payment") {
+      throw new Error(`Atteso pending_payment, ottenuto: ${JSON.stringify(bookPay)}`);
+    }
+
+    const { data: payReg, error: payRegErr } = await admin
+      .from("event_registrations")
+      .select("id")
+      .eq("event_id", paidEvt.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (payRegErr || !payReg) {
+      throw new Error(`Lettura registration pending: ${payRegErr?.message ?? "not found"}`);
+    }
+
+    const { data: confData, error: confErr } = await admin.rpc("event_registration_action", {
+      p_operation: "confirm_payment",
+      p_event_id: null,
+      p_registration_id: payReg.id,
+      p_payment_intent_id: "pi_smoke_test",
+    });
+    if (confErr) {
+      throw rpcError("confirm_payment", confErr);
+    }
+    if (confData?.status !== "confirmed") {
+      throw new Error(`Atteso confirmed dopo pagamento, ottenuto: ${JSON.stringify(confData)}`);
+    }
+
+    const { error: delPaidErr } = await admin.from("events").delete().eq("id", paidEvt.id);
+    if (delPaidErr) {
+      console.warn("   (warn) eliminazione evento smoke paid:", delPaidErr.message);
+    }
+    console.log("   → OK pagamenti RPC");
+  }
 
   if (ephemeral) {
     console.log("12) Elimino utente effimero (cascade su registrations/profile)…");

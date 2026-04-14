@@ -2,7 +2,11 @@ import Link from "next/link";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDateTime, getEventRegistrationsForStaff } from "@/lib/gamestore/data";
+import {
+  formatDateTime,
+  formatRegistrationStatus,
+  getEventRegistrationsForStaff,
+} from "@/lib/gamestore/data";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
 import { notFound } from "next/navigation";
 import { checkInRegistration } from "../../actions";
@@ -94,13 +98,18 @@ export default async function AdminEventDetailPage({
                       </p>
                     </div>
                     <Badge variant="outline">
-                      {registration.status}
-                      {registration.status === "waitlisted" &&
-                      registration.waitlist_position
-                        ? ` #${registration.waitlist_position}`
-                        : ""}
+                      {formatRegistrationStatus(
+                        registration.status,
+                        registration.waitlist_position,
+                      )}
                     </Badge>
                   </div>
+                  {registration.payment_intent_id ? (
+                    <p className="text-xs text-foreground/60">
+                      Stripe: {registration.payment_intent_id}
+                      {registration.paid_at ? ` · pagato ${formatDateTime(registration.paid_at)}` : ""}
+                    </p>
+                  ) : null}
                   {registration.status === "confirmed" ? (
                     <form action={checkInRegistration} className="mt-3">
                       <input type="hidden" name="registration_id" value={registration.id} />
