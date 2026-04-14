@@ -67,6 +67,66 @@ async function dispatchProductStockAvailableEmail(
   });
 }
 
+async function dispatchCampaignSegmentEmail(
+  supabase: ReturnType<typeof createAdminClient>,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const userId = payload.user_id;
+  const campaignId = payload.campaign_id;
+  const subjectLineRaw = payload.subject_line;
+  const teaserRaw = payload.teaser;
+  const segmentKind = payload.segment_kind;
+
+  if (typeof userId !== "string" || typeof campaignId !== "string") {
+    throw new Error("campaign_payload_missing_ids");
+  }
+
+  const subjectLine =
+    typeof subjectLineRaw === "string" && subjectLineRaw.trim()
+      ? subjectLineRaw.trim().replace(/[\r\n<>{}\x00-\x08]/g, " ").slice(0, 120)
+      : "Mana Nero — aggiornamento";
+  const teaser = typeof teaserRaw === "string" ? teaserRaw.trim() : "";
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const to = profile?.email?.trim();
+  if (!to) {
+    throw new Error("recipient_email_missing");
+  }
+
+  const origin = getSiteUrl();
+  const newsUrl = `${origin}/news`;
+  const protectedUrl = `${origin}/protected`;
+
+  const bodyParagraphs = teaser
+    ? teaser
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .map((line) => `<p>${escapeHtml(line)}</p>`)
+        .join("")
+    : `<p>${escapeHtml(`Novità per te (campagna «${campaignId}»).`)}</p>`;
+
+  let bodyHtml = `<p>Ciao${profile?.full_name ? ` ${escapeHtml(profile.full_name)}` : ""},</p>`;
+  bodyHtml += bodyParagraphs;
+  bodyHtml += `<p><a href="${escapeHtml(newsUrl)}" style="color:#fafafa;">Novità</a> · <a href="${escapeHtml(protectedUrl)}" style="color:#fafafa;">Area riservata</a></p>`;
+
+  const segmentLabel =
+    segmentKind === "marketing_consent"
+      ? "Marketing (consenso profilo)"
+      : "Newsletter opt-in";
+  bodyHtml += `<p style="font-size:11px;color:#888;">Segmento: ${escapeHtml(segmentLabel)}</p>`;
+
+  await sendManaNeroEmail({
+    to,
+    subject: subjectLine,
+    sections: [{ title: "Mana Nero", bodyHtml }],
+  });
+}
+
 async function dispatchEmail(
   supabase: ReturnType<typeof createAdminClient>,
   row: OutboxRow,
@@ -74,6 +134,10 @@ async function dispatchEmail(
   const kind = payloadKind(row.payload);
   if (kind === "product_stock_available") {
     await dispatchProductStockAvailableEmail(supabase, row.payload);
+    return;
+  }
+  if (kind === "campaign_segment") {
+    await dispatchCampaignSegmentEmail(supabase, row.payload);
     return;
   }
 

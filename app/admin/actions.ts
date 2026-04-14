@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { userMeetsRole } from "@/lib/auth/roles";
+import { enqueueStaffSegmentCampaign } from "@/lib/comms/campaign-segment-enqueue";
 import { enqueueEventReminder24hScan } from "@/lib/comms/event-reminders";
 import { enqueueMessage } from "@/lib/comms/enqueue";
 import { runBookingAction } from "@/lib/domain/booking";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { CMS_STORAGE_BUCKET } from "@/lib/supabase/cms-storage";
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -315,6 +317,37 @@ export async function runEventReminderScan() {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "reminder_scan_failed";
+    redirect(`/admin/comms?error=${encodeURIComponent(message)}`);
+  }
+}
+
+export async function runNewsletterCampaignEnqueue(formData: FormData) {
+  await requireUserWithRole("staff");
+  const campaignId = String(formData.get("campaign_id") || "").trim();
+  const subjectLine = String(formData.get("campaign_subject") || "").trim();
+  const teaser = String(formData.get("campaign_teaser") || "").trim();
+  const segmentRaw = String(formData.get("campaign_segment") || "newsletter_opt_in").trim();
+  const segment =
+    segmentRaw === "marketing_consent" ? ("marketing_consent" as const) : ("newsletter_opt_in" as const);
+
+  try {
+    const admin = createAdminClient();
+    const result = await enqueueStaffSegmentCampaign(admin, {
+      campaignId,
+      subjectLine,
+      teaser,
+      segment,
+    });
+    revalidatePath("/admin/comms");
+    const errQ =
+      result.errors.length > 0
+        ? `&campaign_errors=${encodeURIComponent(String(result.errors.length))}`
+        : "";
+    redirect(
+      `/admin/comms?campaign_attempted=${encodeURIComponent(String(result.attempted))}${errQ}`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "campaign_enqueue_failed";
     redirect(`/admin/comms?error=${encodeURIComponent(message)}`);
   }
 }

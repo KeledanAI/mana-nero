@@ -11,7 +11,7 @@ Usa questa lista in parallelo a [deploy-production-runbook.md](./deploy-producti
 
 - [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` rispondano `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
 - [ ] **Stripe (se usi pagamenti evento):** webhook verso `/api/webhooks/stripe` con `checkout.session.completed`; `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` su Vercel.
-- [ ] **Migrazioni:** l’istanza Postgres del progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente).
+- [ ] **Migrazioni:** l’istanza Postgres del progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente), incluse quelle per check-in QR (`20260417120000_event_registration_check_in_token.sql`: colonna `check_in_token`, RPC `event_check_in_by_token`).
 
 ## Verifiche automatiche (locale con env che punta al target)
 
@@ -39,3 +39,12 @@ Per controllo strict delle variabili tipo produzione senza lo script composito: 
 
 - [ ] **Post-deploy manuale:** sito pubblico, `/events`, login magic link; staff su `/admin` e un evento; oppure di nuovo `verify:release-stack` con env di produzione.
 - [ ] **CI:** workflow GitHub verde sulla branch principale; in locale `npm run ci` prima del push.
+
+## Dopo merge su `main` (GitHub)
+
+Da eseguire quando il codice su `origin/main` include nuove migrazioni o nuove route cron (allineato a [ROADMAP.md](../ROADMAP.md) §205–231):
+
+- [ ] **Supabase remoto:** `supabase db push` sul progetto collegato alla produzione (o pipeline CI equivalente).
+- [ ] **Subito dopo il push DB:** `npm run verify:after-migrations` (o `npm run verify:predeploy` se vuoi anche il gate `verify:deploy` con env mirror prod).
+- [ ] **Vercel:** attendi deploy automatico da `main`; controlla log runtime e cron (quattro path GET, incluso `product-stock-notifications`).
+- [ ] **Nessuna migrazione nuova in merge:** comunque `npm run verify:release-stack` con `.env.local` che punta al progetto Supabase di produzione prima di considerare il rilascio chiuso.

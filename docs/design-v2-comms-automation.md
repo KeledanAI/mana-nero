@@ -23,7 +23,7 @@ Estensioni additive al JSON (non regole business in jsonb critico oltre a `kind`
 |------|--------|----------------------------|
 | `event_reminder_24h` | ~24h prima di `events.starts_at` | `event_reminder_24h:{event_id}:{user_id}` |
 | (futuro) `event_reminder_7d` | 7 giorni prima | `event_reminder_7d:{event_id}:{user_id}` |
-| (futuro) `campaign_segment` | Campagna staff | `campaign:{campaign_id}:{user_id}` |
+| `campaign_segment` | Campagna staff (`/admin/comms`: newsletter opt-in o marketing consent) | `campaign:{segment}:{campaign_id}:{user_id}` |
 | (futuro) `waitlist_digest` | Digest posizione waitlist | `waitlist_digest:{registration_id}:{period}` |
 
 ## 4. Flusso reminder 24h
@@ -60,13 +60,15 @@ sequenceDiagram
 ## 7. Incrementi futuri
 
 - Reminder 7d / multi-fuso orario per `starts_at`.
-- Campagne segmentate (tabella `comms_campaigns` + enqueue batch).
+- Campagne: tabella `comms_campaigns` (metadati campagna, stato, owner staff), enqueue batch da record campagna, audit log append-only sulle azioni staff.
 - Vista SQL `v_outbox_stats_by_kind` per metriche.
+- Allineamento payload: campo `segment_kind` su `campaign_segment` per tracciabilità (già inviato dal worker verso il template email).
 
 ## 8. Implementato in repo (primo slice)
 
 - [`lib/comms/event-reminders.ts`](../lib/comms/event-reminders.ts) — scan finestra 22h–30h, enqueue `event_reminder_24h`.
 - [`app/api/cron/event-reminders/route.ts`](../app/api/cron/event-reminders/route.ts) — GET con Bearer come outbox.
-- [`lib/comms/process-outbox.ts`](../lib/comms/process-outbox.ts) — template email `event_reminder_24h`.
-- [`app/admin/comms/page.tsx`](../app/admin/comms/page.tsx) — trigger manuale scan (staff).
+- [`lib/comms/process-outbox.ts`](../lib/comms/process-outbox.ts) — template email `event_reminder_24h` e `campaign_segment`.
+- [`app/admin/comms/page.tsx`](../app/admin/comms/page.tsx) — trigger manuale scan (staff) e form campagna newsletter opt-in.
+- [`lib/comms/campaign-segment-enqueue.ts`](../lib/comms/campaign-segment-enqueue.ts) — enqueue batch idempotente `campaign_segment` (segmenti `newsletter_opt_in` e `marketing_consent`; chiave `campaign:{segment}:{id}:{user}`).
 - [`vercel.json`](../vercel.json) — cron ogni 6 ore sul path sopra.

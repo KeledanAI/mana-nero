@@ -4,7 +4,10 @@ import { SubmitButton } from "@/components/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
 
-import { runEventReminderScan } from "../actions";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+import { runEventReminderScan, runNewsletterCampaignEnqueue } from "../actions";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -31,6 +34,8 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
 
   const events = firstParam(params.events);
   const attempted = firstParam(params.attempted);
+  const campaignAttempted = firstParam(params.campaign_attempted);
+  const campaignErrors = firstParam(params.campaign_errors);
 
   return (
     <section className="grid gap-6">
@@ -112,6 +117,69 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
           <form action={runEventReminderScan}>
             <SubmitButton pendingLabel="Scansione in corso…">Esegui scan reminder 24h ora</SubmitButton>
           </form>
+
+          <div className="border-t border-border/60 pt-6">
+            <p className="text-sm font-medium text-foreground/90">Campagna segmentata (primo slice)</p>
+            <p className="mt-1 text-xs text-foreground/60">
+              Accoda in outbox messaggi <code className="rounded bg-secondary px-1 text-xs">campaign_segment</code>{" "}
+              per segmento scelto (newsletter opt-in o marketing consent) con email nota (max 250 destinatari per
+              invocazione). Idempotency: <code className="text-xs">campaign:segment:slug:user_id</code>. Nessun
+              invio diretto: solo righe <code className="text-xs">pending</code> processate dal worker outbox.
+            </p>
+            {campaignAttempted != null ? (
+              <p className="mt-2 text-sm text-emerald-700">
+                Ultima campagna: {campaignAttempted} destinatari considerati
+                {campaignErrors != null ? ` · errori enqueue: ${campaignErrors}` : ""}.
+              </p>
+            ) : null}
+            <form action={runNewsletterCampaignEnqueue} className="mt-4 grid max-w-lg gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="campaign_segment">Segmento destinatari</Label>
+                <select
+                  id="campaign_segment"
+                  name="campaign_segment"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  defaultValue="newsletter_opt_in"
+                >
+                  <option value="newsletter_opt_in">Newsletter opt-in</option>
+                  <option value="marketing_consent">Marketing consent (profilo)</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="campaign_id">ID campagna (slug, es. estate-2026)</Label>
+                <Input
+                  id="campaign_id"
+                  name="campaign_id"
+                  required
+                  maxLength={64}
+                  placeholder="estate-2026"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="campaign_subject">Oggetto email</Label>
+                <Input
+                  id="campaign_subject"
+                  name="campaign_subject"
+                  required
+                  maxLength={120}
+                  placeholder="Mana Nero — novità in negozio"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="campaign_teaser">Testo (opzionale, righe = paragrafi)</Label>
+                <textarea
+                  id="campaign_teaser"
+                  name="campaign_teaser"
+                  rows={4}
+                  maxLength={2000}
+                  className="min-h-[96px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Breve messaggio per i clienti iscritti alla newsletter…"
+                />
+              </div>
+              <SubmitButton pendingLabel="Accodamento…">Accoda campagna segmentata</SubmitButton>
+            </form>
+          </div>
         </CardContent>
       </Card>
     </section>

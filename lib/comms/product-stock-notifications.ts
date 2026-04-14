@@ -30,6 +30,15 @@ export function stockArrivalIdempotencyKey(requestId: string): string {
   return `product_stock_arrival:${requestId}`;
 }
 
+/** Limite righe processate per cron (override con PRODUCT_STOCK_SCAN_BATCH_LIMIT). */
+export function stockScanBatchLimitFromEnv(): number {
+  const raw = (process.env.PRODUCT_STOCK_SCAN_BATCH_LIMIT ?? "").trim();
+  if (!raw) return 40;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return 40;
+  return Math.min(n, 500);
+}
+
 /**
  * Accoda email `product_stock_available` per richieste awaiting_stock in finestra,
  * poi imposta `stock_notified_at` per evitare ri-accodamenti (l'outbox gestisce retry invio).
@@ -39,7 +48,7 @@ export async function enqueueProductStockArrivalScan(
   options?: { now?: Date; limit?: number },
 ): Promise<{ scanned: number; enqueued: number; marked: number; errors: string[] }> {
   const now = options?.now ?? new Date();
-  const limit = options?.limit ?? 40;
+  const limit = options?.limit ?? stockScanBatchLimitFromEnv();
   const errors: string[] = [];
 
   const { data: rows, error: listErr } = await supabase

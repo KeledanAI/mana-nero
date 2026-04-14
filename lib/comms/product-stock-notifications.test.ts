@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   isEligibleForStockArrivalNotification,
   stockArrivalIdempotencyKey,
+  stockScanBatchLimitFromEnv,
 } from "./product-stock-notifications";
 
 describe("stockArrivalIdempotencyKey", () => {
@@ -12,6 +13,21 @@ describe("stockArrivalIdempotencyKey", () => {
       stockArrivalIdempotencyKey("550e8400-e29b-41d4-a716-446655440000"),
       "product_stock_arrival:550e8400-e29b-41d4-a716-446655440000",
     );
+  });
+});
+
+describe("stockScanBatchLimitFromEnv", () => {
+  it("defaults to 40 when unset", () => {
+    delete process.env.PRODUCT_STOCK_SCAN_BATCH_LIMIT;
+    assert.equal(stockScanBatchLimitFromEnv(), 40);
+  });
+
+  it("parses positive integer and caps at 500", () => {
+    process.env.PRODUCT_STOCK_SCAN_BATCH_LIMIT = "80";
+    assert.equal(stockScanBatchLimitFromEnv(), 80);
+    process.env.PRODUCT_STOCK_SCAN_BATCH_LIMIT = "9999";
+    assert.equal(stockScanBatchLimitFromEnv(), 500);
+    delete process.env.PRODUCT_STOCK_SCAN_BATCH_LIMIT;
   });
 });
 

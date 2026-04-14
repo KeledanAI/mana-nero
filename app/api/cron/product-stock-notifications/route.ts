@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { isCronBearerAuthorized } from "@/lib/comms/cron-auth";
-import { enqueueProductStockArrivalScan } from "@/lib/comms/product-stock-notifications";
+import {
+  enqueueProductStockArrivalScan,
+  stockScanBatchLimitFromEnv,
+} from "@/lib/comms/product-stock-notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -28,7 +31,9 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createAdminClient();
-    const result = await enqueueProductStockArrivalScan(supabase);
+    const result = await enqueueProductStockArrivalScan(supabase, {
+      limit: stockScanBatchLimitFromEnv(),
+    });
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

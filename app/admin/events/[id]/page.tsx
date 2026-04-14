@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EventCheckInQr } from "@/components/event-check-in-qr";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import {
   getEventRegistrationsForStaff,
 } from "@/lib/gamestore/data";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
+import { getSiteUrl } from "@/lib/site-url";
 import { notFound } from "next/navigation";
 import { checkInRegistration } from "../../actions";
 
@@ -37,6 +39,8 @@ export default async function AdminEventDetailPage({
   ]);
 
   if (!event) notFound();
+
+  const siteOrigin = getSiteUrl();
 
   return (
     <section className="grid gap-6">
@@ -111,11 +115,25 @@ export default async function AdminEventDetailPage({
                     </p>
                   ) : null}
                   {registration.status === "confirmed" ? (
-                    <form action={checkInRegistration} className="mt-3">
-                      <input type="hidden" name="registration_id" value={registration.id} />
-                      <input type="hidden" name="event_id" value={id} />
-                      <SubmitButton pendingLabel="Check-in...">Check-in</SubmitButton>
-                    </form>
+                    <div className="mt-3 space-y-3">
+                      {registration.check_in_token ? (
+                        <div className="rounded-xl border border-border/50 bg-background/50 p-3">
+                          <p className="text-xs font-medium text-foreground/80">Self check-in (QR / link)</p>
+                          <p className="mt-1 break-all font-mono text-[11px] text-foreground/65">
+                            {`${siteOrigin}/events/check-in/${registration.check_in_token}`}
+                          </p>
+                          <EventCheckInQr
+                            checkInUrl={`${siteOrigin}/events/check-in/${registration.check_in_token}`}
+                            label="Mostra al partecipante: apre il link o inquadra il QR."
+                          />
+                        </div>
+                      ) : null}
+                      <form action={checkInRegistration}>
+                        <input type="hidden" name="registration_id" value={registration.id} />
+                        <input type="hidden" name="event_id" value={id} />
+                        <SubmitButton pendingLabel="Check-in...">Check-in da staff</SubmitButton>
+                      </form>
+                    </div>
                   ) : null}
                 </div>
               );

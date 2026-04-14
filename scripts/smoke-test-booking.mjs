@@ -1,5 +1,5 @@
 /**
- * Smoke test automatico: utente → book → cancel → book → promozione staff → check-in RPC.
+ * Smoke test automatico: utente → book → cancel → book → check-in (QR token anon se migrazione presente, altrimenti staff_check_in).
  *
  * Richiede in .env.local: NEXT_PUBLIC_SUPABASE_URL, chiave anon/publishable, SUPABASE_SERVICE_ROLE_KEY.
  *
@@ -210,39 +210,82 @@ async function main() {
     throw rpcError("book2", book2Err);
   }
 
-  const { data: regRow, error: regErr } = await userClient
-    .from("event_registrations")
-    .select("id, status")
-    .eq("event_id", eventId)
-    .eq("user_id", userId)
-    .in("status", ["confirmed", "waitlisted"])
-    .maybeSingle();
-
-  if (regErr || !regRow) {
-    throw new Error(`Lettura registration: ${regErr?.message ?? "not found"}`);
+  let regRow;
+  {
+    const withToken = await userClient
+      .from("event_registrations")
+      .select("id, status, check_in_token")
+      .eq("event_id", eventId)
+      .eq("user_id", userId)
+      .in("status", ["confirmed", "waitlisted"])
+      .maybeSingle();
+    if (withToken.error) {
+      const fallback = await userClient
+        .from("event_registrations")
+        .select("id, status")
+        .eq("event_id", eventId)
+        .eq("user_id", userId)
+        .in("status", ["confirmed", "waitlisted"])
+        .maybeSingle();
+      if (fallback.error || !fallback.data) {
+        throw new Error(
+          `Lettura registration: ${withToken.error?.message ?? fallback.error?.message ?? "not found"}`,
+        );
+      }
+      regRow = fallback.data;
+      console.log("   (check_in_token non in schema: uso solo staff_check_in)");
+    } else if (!withToken.data) {
+      throw new Error("Lettura registration: not found");
+    } else {
+      regRow = withToken.data;
+    }
   }
   console.log("   Registration:", regRow.id, regRow.status);
 
-  console.log("8) Promuovo profilo a staff (service role)…");
-  const { error: roleErr } = await admin
-    .from("profiles")
-    .update({ role: "staff", updated_at: new Date().toISOString() })
-    .eq("id", userId);
-  if (roleErr) {
-    throw new Error(`Update role staff: ${roleErr.message}`);
+  const anonNoSession = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  let usedQrCheckIn = false;
+  if (regRow.check_in_token) {
+    console.log("7b) RPC event_check_in_by_token (client anon, senza sessione)…");
+    const { data: tokData, error: tokErr } = await anonNoSession.rpc("event_check_in_by_token", {
+      p_token: regRow.check_in_token,
+    });
+    if (tokErr) {
+      console.log("   → skip (RPC):", tokErr.message);
+    } else if (tokData && tokData.ok === true) {
+      usedQrCheckIn = true;
+      console.log("   →", tokData);
+    } else {
+      console.log("   → skip (business):", JSON.stringify(tokData));
+    }
   }
 
-  console.log("9) RPC staff_check_in (stessa sessione JWT)…");
-  const { data: checkData, error: checkErr } = await userClient.rpc("event_registration_action", {
-    p_operation: "staff_check_in",
-    p_event_id: null,
-    p_registration_id: regRow.id,
-    p_payment_intent_id: null,
-  });
-  if (checkErr) {
-    throw rpcError("staff_check_in", checkErr);
+  if (!usedQrCheckIn) {
+    console.log("8) Promuovo profilo a staff (service role)…");
+    const { error: roleErr } = await admin
+      .from("profiles")
+      .update({ role: "staff", updated_at: new Date().toISOString() })
+      .eq("id", userId);
+    if (roleErr) {
+      throw new Error(`Update role staff: ${roleErr.message}`);
+    }
+
+    console.log("9) RPC staff_check_in (stessa sessione JWT)…");
+    const { data: checkData, error: checkErr } = await userClient.rpc("event_registration_action", {
+      p_operation: "staff_check_in",
+      p_event_id: null,
+      p_registration_id: regRow.id,
+      p_payment_intent_id: null,
+    });
+    if (checkErr) {
+      throw rpcError("staff_check_in", checkErr);
+    }
+    console.log("   →", checkData);
+  } else {
+    console.log("8) Skip promozione staff (check-in già completato via token).");
   }
-  console.log("   →", checkData);
 
   const { data: finalReg, error: finErr } = await admin
     .from("event_registrations")
@@ -267,11 +310,13 @@ async function main() {
   const checked = csvRows?.filter((r) => r.status === "checked_in").length ?? 0;
   console.log("   Righe evento:", csvRows?.length ?? 0, "| checked_in:", checked);
 
-  console.log("11) Ripristino ruolo customer sul profilo di test…");
-  await admin
-    .from("profiles")
-    .update({ role: "customer", updated_at: new Date().toISOString() })
-    .eq("id", userId);
+  if (!usedQrCheckIn) {
+    console.log("11) Ripristino ruolo customer sul profilo di test…");
+    await admin
+      .from("profiles")
+      .update({ role: "customer", updated_at: new Date().toISOString() })
+      .eq("id", userId);
+  }
 
   if ((env.SMOKE_TEST_EVENT_PAYMENTS || "").trim() === "1") {
     console.log("11b) Opzionale: evento a deposito → pending_payment → confirm_payment (service_role)…");

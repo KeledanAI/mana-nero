@@ -248,7 +248,7 @@ export async function getEventRegistrationsForStaff(
   const { data, error } = await supabase
     .from("event_registrations")
     .select(
-      "id, event_id, user_id, status, waitlist_position, created_at, payment_intent_id, payment_status, paid_at",
+      "id, event_id, user_id, status, waitlist_position, created_at, payment_intent_id, payment_status, paid_at, check_in_token",
     )
     .eq("event_id", eventId)
     .order("created_at", { ascending: true });
@@ -265,6 +265,7 @@ export async function getEventRegistrationsForStaff(
     payment_intent_id: string | null;
     payment_status: string | null;
     paid_at: string | null;
+    check_in_token: string | null;
   }>;
 
   const userIds = [...new Set(registrations.map((item) => item.user_id))];
