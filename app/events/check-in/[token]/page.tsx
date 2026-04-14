@@ -10,6 +10,15 @@ type PageProps = {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function googleCalendarTemplateUrl(startIso: string, title: string): string | null {
+  const start = new Date(startIso);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + 2 * 3600000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const text = encodeURIComponent(title.trim() || "Evento");
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${fmt(start)}/${fmt(end)}`;
+}
+
 function messageForError(code: string | undefined): string {
   switch (code) {
     case "invalid_token":
@@ -104,6 +113,9 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
         ? result.event_slug.trim()
         : "";
     const eventHref = slug ? `/events/${encodeURIComponent(slug)}` : "/events";
+    const startIso = typeof result.event_starts_at === "string" ? result.event_starts_at : "";
+    const eventTitle = typeof result.event_title === "string" ? result.event_title : "";
+    const calHref = startIso ? googleCalendarTemplateUrl(startIso, eventTitle) : null;
 
     return (
       <section className="mx-auto grid max-w-lg gap-4 px-4 py-16">
@@ -113,6 +125,9 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-foreground/80">
             <p className="text-emerald-700">La tua presenza è stata registrata. Buon divertimento!</p>
+            <p className="text-xs text-foreground/60">
+              Puoi tenere questa schermata come conferma oppure aprire la pagina dell&apos;evento qui sotto.
+            </p>
             <div className="flex flex-wrap gap-4">
               <Link href={eventHref} className="font-medium text-primary hover:underline">
                 {slug ? "Vai alla pagina dell’evento" : "Torna agli eventi"}
@@ -120,6 +135,16 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
               <Link href="/events" className="font-medium text-foreground/70 hover:underline">
                 Tutti gli eventi
               </Link>
+              {calHref ? (
+                <a
+                  href={calHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Aggiungi a Google Calendar
+                </a>
+              ) : null}
             </div>
           </CardContent>
         </Card>

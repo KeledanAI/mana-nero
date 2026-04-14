@@ -60,6 +60,14 @@ export type ProfileListRow = {
   newsletter_opt_in: boolean;
   marketing_consent: boolean;
   interests: string[] | null;
+  /** Override giorni lookahead notifiche stock (null = solo env globale). */
+  stock_notification_lookahead_days?: number | null;
+};
+
+export type CrmProfileListFilters = {
+  role?: "" | "customer" | "staff" | "admin";
+  newsletter?: "" | "any" | "yes" | "no";
+  marketing?: "" | "any" | "yes" | "no";
 };
 
 export type AdminNoteRow = {
@@ -291,12 +299,114 @@ export async function getAllProfilesForStaff(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests",
+      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days",
     )
     .order("updated_at", { ascending: false });
 
   if (error) return [];
   return (data ?? []) as ProfileListRow[];
+}
+
+function escapeIlikePattern(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function applyCrmProfileFilters<T extends ProfileListRow>(rows: T[], filters?: CrmProfileListFilters | null): T[] {
+  if (!filters) return rows;
+  return rows.filter((row) => {
+    if (filters.role && row.role !== filters.role) return false;
+    if (filters.newsletter === "yes" && !row.newsletter_opt_in) return false;
+    if (filters.newsletter === "no" && row.newsletter_opt_in) return false;
+    if (filters.marketing === "yes" && !row.marketing_consent) return false;
+    if (filters.marketing === "no" && row.marketing_consent) return false;
+    return true;
+  });
+}
+
+/**
+ * Elenco profili per staff con ricerca opzionale su email / nome (substring, case-insensitive)
+ * e filtri opzionali su ruolo / consensi.
+ */
+export async function getProfilesForStaffSearch(
+  supabase: SupabaseClient,
+  search?: string | null,
+  filters?: CrmProfileListFilters | null,
+) {
+  const q = (search ?? "").trim();
+  if (q.length < 2) {
+    return applyCrmProfileFilters(await getAllProfilesForStaff(supabase), filters);
+  }
+  const term = escapeIlikePattern(q.slice(0, 120));
+  const pattern = `%${term}%`;
+  const select =
+    "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days, updated_at" as const;
+
+  const [byEmail, byName] = await Promise.all([
+    supabase.from("profiles").select(select).ilike("email", pattern).order("updated_at", { ascending: false }).limit(120),
+    supabase
+      .from("profiles")
+      .select(select)
+      .ilike("full_name", pattern)
+      .order("updated_at", { ascending: false })
+      .limit(120),
+  ]);
+
+  if (byEmail.error || byName.error) return [];
+
+  type Row = ProfileListRow & { updated_at?: string };
+  const seen = new Set<string>();
+  const merged: Row[] = [];
+  for (const row of [...(byEmail.data ?? []), ...(byName.data ?? [])] as Row[]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    merged.push(row);
+  }
+  merged.sort((x, y) => {
+    const tx = x.updated_at ? new Date(x.updated_at).getTime() : 0;
+    const ty = y.updated_at ? new Date(y.updated_at).getTime() : 0;
+    return ty - tx;
+  });
+  const mapped = merged.slice(0, 200).map(
+    (row) =>
+      ({
+        id: row.id,
+        email: row.email,
+        full_name: row.full_name,
+        role: row.role,
+        newsletter_opt_in: row.newsletter_opt_in,
+        marketing_consent: row.marketing_consent,
+        interests: row.interests,
+        stock_notification_lookahead_days: row.stock_notification_lookahead_days ?? null,
+      }) as ProfileListRow,
+  );
+  return applyCrmProfileFilters(mapped, filters);
+}
+
+export type OutboxCampaignHistoryRow = {
+  id: string;
+  status: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+/** Righe outbox email per `payload.campaign_id` (slug campagna), più recenti prima. */
+export async function getOutboxRowsForCampaignSlugStaff(
+  supabase: SupabaseClient,
+  campaignSlug: string,
+  limit = 50,
+) {
+  const slug = campaignSlug.trim();
+  if (!slug) return [];
+  const { data, error } = await supabase
+    .from("communication_outbox")
+    .select("id, status, payload, created_at")
+    .eq("channel", "email")
+    .filter("payload->>campaign_id", "eq", slug)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return (data ?? []) as OutboxCampaignHistoryRow[];
 }
 
 export async function getAdminNotesForStaff(supabase: SupabaseClient) {
@@ -390,7 +500,7 @@ export async function getProfileByIdForStaff(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests",
+      "id, email, full_name, role, newsletter_opt_in, marketing_consent, interests, stock_notification_lookahead_days",
     )
     .eq("id", profileId)
     .maybeSingle();
@@ -442,6 +552,118 @@ export async function getRegistrationsForProfileStaff(
     ...row,
     events: Array.isArray(row.events) ? row.events[0] ?? null : row.events,
   }));
+}
+
+export async function getProductRequestsForProfileStaff(supabase: SupabaseClient, userId: string) {
+  const { data, error } = await supabase
+    .from("product_reservation_requests")
+    .select("id, product_name, status, created_at, expected_fulfillment_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return (data ?? []) as Array<{
+    id: string;
+    product_name: string;
+    status: string;
+    created_at: string;
+    expected_fulfillment_at: string | null;
+  }>;
+}
+
+export type OutboxEmailTimelineRow = {
+  id: string;
+  status: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export async function getOutboxEmailTimelineForProfileStaff(
+  supabase: SupabaseClient,
+  userId: string,
+  limit = 25,
+) {
+  const { data, error } = await supabase
+    .from("communication_outbox")
+    .select("id, status, payload, created_at")
+    .eq("channel", "email")
+    .contains("payload", { user_id: userId })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return (data ?? []) as OutboxEmailTimelineRow[];
+}
+
+export type StaffCrmAuditRow = {
+  id: string;
+  action_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export async function getCrmAuditTrailForProfileStaff(
+  supabase: SupabaseClient,
+  profileId: string,
+  limit = 25,
+) {
+  const { data: regs } = await supabase.from("event_registrations").select("id").eq("user_id", profileId);
+  const regIds = (regs ?? []).map((r) => r.id as string);
+
+  const direct = await supabase
+    .from("staff_crm_audit_log")
+    .select("id, action_type, entity_type, entity_id, payload, created_at")
+    .eq("entity_id", profileId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const forRegs =
+    regIds.length > 0
+      ? await supabase
+          .from("staff_crm_audit_log")
+          .select("id, action_type, entity_type, entity_id, payload, created_at")
+          .eq("entity_type", "event_registration")
+          .in("entity_id", regIds)
+          .order("created_at", { ascending: false })
+          .limit(limit)
+      : { data: [] as StaffCrmAuditRow[], error: null as null };
+
+  if (direct.error) return [];
+  if (forRegs.error) return (direct.data ?? []) as StaffCrmAuditRow[];
+
+  const rows = [...(direct.data ?? []), ...(forRegs.data ?? [])] as StaffCrmAuditRow[];
+  const seen = new Set<string>();
+  const merged: StaffCrmAuditRow[] = [];
+  for (const r of rows.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    merged.push(r);
+  }
+  return merged.slice(0, limit);
+}
+
+export type CommsCampaignRow = {
+  id: string;
+  slug: string;
+  title: string;
+  segment_kind: string;
+  subject_line: string | null;
+  teaser: string | null;
+  created_at: string;
+};
+
+export async function getCommsCampaignsForStaff(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from("comms_campaigns")
+    .select("id, slug, title, segment_kind, subject_line, teaser, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return (data ?? []) as CommsCampaignRow[];
 }
 
 export type GamePageRow = {

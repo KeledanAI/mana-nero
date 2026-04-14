@@ -33,7 +33,7 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
         ? supabase
             .from("events")
             .select(
-              "id, title, slug, description, game_type, starts_at, ends_at, capacity, price_display, price_cents, deposit_cents, currency, status, category_id, cover_image_path",
+              "id, title, slug, description, game_type, starts_at, ends_at, capacity, price_display, price_cents, deposit_cents, currency, status, category_id, cover_image_path, check_in_early_days, check_in_late_hours",
             )
             .eq("id", editId)
             .maybeSingle()
@@ -205,6 +205,44 @@ export default async function AdminEventsPage({ searchParams }: PageProps) {
               <Input id="cover_image" name="cover_image" type="file" accept="image/jpeg,image/png,image/webp" />
               <p className="text-xs text-foreground/60">JPG/PNG/WEBP, max 5MB. Se carichi un file sovrascrive il percorso manuale.</p>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="check_in_early_days">Check-in self-serve: giorni max prima dell&apos;inizio</Label>
+                <Input
+                  id="check_in_early_days"
+                  name="check_in_early_days"
+                  type="number"
+                  min={0}
+                  max={60}
+                  placeholder="Default 8 se vuoto"
+                  defaultValue={
+                    editingEvent?.check_in_early_days != null
+                      ? String(editingEvent.check_in_early_days)
+                      : ""
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="check_in_late_hours">Check-in self-serve: ore max dopo l&apos;inizio</Label>
+                <Input
+                  id="check_in_late_hours"
+                  name="check_in_late_hours"
+                  type="number"
+                  min={1}
+                  max={336}
+                  placeholder="Default 72 se vuoto"
+                  defaultValue={
+                    editingEvent?.check_in_late_hours != null
+                      ? String(editingEvent.check_in_late_hours)
+                      : ""
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-xs text-foreground/60">
+              Vuoti = finestra globale (8 giorni prima, 72 ore dopo). Valori più stretti = QR utile solo più vicino
+              all&apos;evento.
+            </p>
             <div className="grid gap-2">
               <Label htmlFor="category_id">Categoria</Label>
               <select

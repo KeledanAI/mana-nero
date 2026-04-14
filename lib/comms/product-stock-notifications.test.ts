@@ -5,6 +5,8 @@ import {
   isEligibleForStockArrivalNotification,
   staffStockSummaryIdempotencyKey,
   stockArrivalIdempotencyKey,
+  stockAutoCancelGraceDaysFromEnv,
+  stockExpectedLookaheadDaysFromEnv,
   stockScanBatchLimitFromEnv,
 } from "./product-stock-notifications";
 
@@ -97,5 +99,79 @@ describe("isEligibleForStockArrivalNotification", () => {
       ),
       true,
     );
+  });
+
+  it("prefers profile lookahead over env when larger window needed", () => {
+    const now = new Date("2026-06-01T12:00:00.000Z");
+    assert.equal(
+      isEligibleForStockArrivalNotification(
+        {
+          ...base,
+          expected_fulfillment_at: "2026-12-01T12:00:00.000Z",
+          profile_stock_lookahead_days: 200,
+        },
+        now,
+        7,
+      ),
+      true,
+    );
+    assert.equal(
+      isEligibleForStockArrivalNotification(
+        { ...base, expected_fulfillment_at: "2026-12-01T12:00:00.000Z", profile_stock_lookahead_days: 10 },
+        now,
+        7,
+      ),
+      false,
+    );
+  });
+
+  it("with lookahead accepts expected within horizon even if future", () => {
+    const now = new Date("2026-06-01T12:00:00.000Z");
+    assert.equal(
+      isEligibleForStockArrivalNotification(
+        { ...base, expected_fulfillment_at: "2026-06-05T12:00:00.000Z" },
+        now,
+        10,
+      ),
+      true,
+    );
+    assert.equal(
+      isEligibleForStockArrivalNotification(
+        { ...base, expected_fulfillment_at: "2026-08-01T12:00:00.000Z" },
+        now,
+        10,
+      ),
+      false,
+    );
+  });
+});
+
+describe("stockExpectedLookaheadDaysFromEnv", () => {
+  it("returns null when unset", () => {
+    delete process.env.PRODUCT_STOCK_EXPECTED_LOOKAHEAD_DAYS;
+    assert.equal(stockExpectedLookaheadDaysFromEnv(), null);
+  });
+
+  it("parses positive integer with cap", () => {
+    process.env.PRODUCT_STOCK_EXPECTED_LOOKAHEAD_DAYS = "21";
+    assert.equal(stockExpectedLookaheadDaysFromEnv(), 21);
+    process.env.PRODUCT_STOCK_EXPECTED_LOOKAHEAD_DAYS = "9000";
+    assert.equal(stockExpectedLookaheadDaysFromEnv(), 730);
+    delete process.env.PRODUCT_STOCK_EXPECTED_LOOKAHEAD_DAYS;
+  });
+});
+
+describe("stockAutoCancelGraceDaysFromEnv", () => {
+  it("returns null when unset", () => {
+    delete process.env.PRODUCT_STOCK_AUTO_CANCEL_GRACE_DAYS;
+    assert.equal(stockAutoCancelGraceDaysFromEnv(), null);
+  });
+
+  it("parses positive integer with cap", () => {
+    process.env.PRODUCT_STOCK_AUTO_CANCEL_GRACE_DAYS = "120";
+    assert.equal(stockAutoCancelGraceDaysFromEnv(), 120);
+    process.env.PRODUCT_STOCK_AUTO_CANCEL_GRACE_DAYS = "99999";
+    assert.equal(stockAutoCancelGraceDaysFromEnv(), 3650);
+    delete process.env.PRODUCT_STOCK_AUTO_CANCEL_GRACE_DAYS;
   });
 });

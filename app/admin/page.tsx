@@ -56,6 +56,12 @@ export default async function AdminDashboardPage() {
       href: "/admin/newsletter",
       hint: "Lista iscritti",
     },
+    {
+      title: "Analytics",
+      value: "→",
+      href: "/admin/analytics",
+      hint: "Conteggi eventi, iscrizioni, outbox, richieste",
+    },
   ];
 
   return (

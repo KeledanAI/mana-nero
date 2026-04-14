@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { userMeetsRole } from "@/lib/auth/roles";
-import { enqueueStaffSegmentCampaign } from "@/lib/comms/campaign-segment-enqueue";
+import { enqueueStaffSegmentCampaign, normalizeCampaignId } from "@/lib/comms/campaign-segment-enqueue";
 import { enqueueEventReminder24hScan } from "@/lib/comms/event-reminders";
 import { enqueueMessage } from "@/lib/comms/enqueue";
 import { runBookingAction } from "@/lib/domain/booking";
+import { logStaffCrmAction } from "@/lib/gamestore/crm-audit";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CMS_STORAGE_BUCKET } from "@/lib/supabase/cms-storage";
@@ -87,6 +88,18 @@ export async function saveEvent(formData: FormData) {
     depositCentsRaw === "" ? null : Number.parseInt(depositCentsRaw, 10);
   const categoryId = String(formData.get("category_id") || "").trim();
   const status = String(formData.get("status") || "draft").trim();
+  const checkInEarlyRaw = String(formData.get("check_in_early_days") || "").trim();
+  const checkInLateRaw = String(formData.get("check_in_late_hours") || "").trim();
+  let checkInEarlyDays: number | null = null;
+  let checkInLateHours: number | null = null;
+  if (checkInEarlyRaw) {
+    const n = Number.parseInt(checkInEarlyRaw, 10);
+    if (Number.isFinite(n) && n >= 0 && n <= 60) checkInEarlyDays = n;
+  }
+  if (checkInLateRaw) {
+    const n = Number.parseInt(checkInLateRaw, 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 336) checkInLateHours = n;
+  }
   const coverImagePathInput = String(formData.get("cover_image_path") || "").trim();
   const coverImageFile = formData.get("cover_image");
   const eventKey = id || slug || crypto.randomUUID();
@@ -122,6 +135,8 @@ export async function saveEvent(formData: FormData) {
     category_id: categoryId ? categoryId : null,
     cover_image_path: uploadedCoverPath || coverImagePathInput || null,
     status,
+    check_in_early_days: checkInEarlyDays,
+    check_in_late_hours: checkInLateHours,
     updated_at: new Date().toISOString(),
   };
 
@@ -241,13 +256,19 @@ export async function addAdminNote(formData: FormData) {
       `/admin/crm/${encodeURIComponent(subjectProfileId)}?error=${encodeURIComponent(error.message)}`,
     );
   }
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "admin_note_created",
+    entity_type: "profile",
+    entity_id: subjectProfileId,
+    payload: { body_preview: body.slice(0, 240) },
+  });
   revalidatePath("/admin/crm");
   revalidatePath(`/admin/crm/${subjectProfileId}`);
   redirect(`/admin/crm/${subjectProfileId}?success=note_saved`);
 }
 
 export async function checkInRegistration(formData: FormData) {
-  const { supabase } = await requireUserWithRole("staff");
+  const { supabase, user } = await requireUserWithRole("staff");
   const registrationId = String(formData.get("registration_id") || "").trim();
   const eventId = String(formData.get("event_id") || "").trim();
 
@@ -264,8 +285,41 @@ export async function checkInRegistration(formData: FormData) {
     );
   }
 
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "staff_check_in",
+    entity_type: "event_registration",
+    entity_id: registrationId,
+    payload: { event_id: eventId },
+  });
   revalidatePath(`/admin/events/${eventId}`);
   redirect(`/admin/events/${eventId}?success=checked_in`);
+}
+
+export async function revokeMarketingConsentForSubject(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const subjectId = String(formData.get("subject_profile_id") || "").trim();
+  if (!subjectId) {
+    redirect("/admin/crm?error=missing_subject");
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ marketing_consent: false, updated_at: new Date().toISOString() })
+    .eq("id", subjectId);
+
+  if (error) {
+    redirect(`/admin/crm/${subjectId}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "marketing_consent_revoked",
+    entity_type: "profile",
+    entity_id: subjectId,
+    payload: {},
+  });
+  revalidatePath(`/admin/crm/${subjectId}`);
+  revalidatePath("/admin/crm");
+  redirect(`/admin/crm/${subjectId}?success=marketing_revoked`);
 }
 
 export async function rotateRegistrationCheckInToken(formData: FormData) {
@@ -300,6 +354,45 @@ export async function rotateRegistrationCheckInToken(formData: FormData) {
 
   revalidatePath(`/admin/events/${eventId}`);
   redirect(`/admin/events/${eventId}?success=qr_token_rotated`);
+}
+
+export async function saveCommsCampaignRecord(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const slug = normalizeCampaignId(String(formData.get("record_slug") || ""));
+  const title = String(formData.get("record_title") || "").trim();
+  const segmentRaw = String(formData.get("record_segment") || "newsletter_opt_in").trim();
+  const segment_kind =
+    segmentRaw === "marketing_consent" ? ("marketing_consent" as const) : ("newsletter_opt_in" as const);
+  const subject_line = String(formData.get("record_subject") || "").trim() || null;
+  const teaser = String(formData.get("record_teaser") || "").trim() || null;
+
+  if (!slug) {
+    redirect(`/admin/comms?error=${encodeURIComponent("slug_invalid")}`);
+  }
+  if (!title) {
+    redirect(`/admin/comms?error=${encodeURIComponent("title_required")}`);
+  }
+
+  const { error } = await supabase.from("comms_campaigns").insert({
+    slug,
+    title,
+    segment_kind,
+    subject_line,
+    teaser,
+    created_by: user.id,
+  });
+
+  if (error) {
+    redirect(`/admin/comms?error=${encodeURIComponent(error.message)}`);
+  }
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "comms_campaign_record_saved",
+    entity_type: "comms_campaign",
+    entity_id: null,
+    payload: { slug, segment_kind },
+  });
+  revalidatePath("/admin/comms");
+  redirect("/admin/comms?success=record_saved");
 }
 
 export async function saveEventCategory(formData: FormData) {
@@ -356,11 +449,34 @@ export async function runEventReminderScan() {
 }
 
 export async function runNewsletterCampaignEnqueue(formData: FormData) {
-  await requireUserWithRole("staff");
-  const campaignId = String(formData.get("campaign_id") || "").trim();
-  const subjectLine = String(formData.get("campaign_subject") || "").trim();
-  const teaser = String(formData.get("campaign_teaser") || "").trim();
-  const segmentRaw = String(formData.get("campaign_segment") || "newsletter_opt_in").trim();
+  const { supabase, user } = await requireUserWithRole("staff");
+  const recordId = String(formData.get("comms_campaign_id") || "").trim();
+  let campaignId = String(formData.get("campaign_id") || "").trim();
+  let subjectLine = String(formData.get("campaign_subject") || "").trim();
+  let teaser = String(formData.get("campaign_teaser") || "").trim();
+  let segmentRaw = String(formData.get("campaign_segment") || "newsletter_opt_in").trim();
+
+  if (recordId) {
+    const { data: rec, error: recErr } = await supabase
+      .from("comms_campaigns")
+      .select("slug, title, segment_kind, subject_line, teaser")
+      .eq("id", recordId)
+      .maybeSingle();
+    if (recErr || !rec) {
+      redirect(`/admin/comms?error=${encodeURIComponent(recErr?.message ?? "campaign_record_not_found")}`);
+    }
+    campaignId = rec.slug;
+    segmentRaw = rec.segment_kind;
+    if (rec.subject_line) subjectLine = rec.subject_line;
+    if (rec.teaser) teaser = rec.teaser;
+    if (!subjectLine.trim()) {
+      subjectLine = (rec.title ?? "").trim() || subjectLine;
+    }
+    if (!subjectLine.trim()) {
+      redirect(`/admin/comms?error=${encodeURIComponent("subject_required_for_record")}`);
+    }
+  }
+
   const segment =
     segmentRaw === "marketing_consent" ? ("marketing_consent" as const) : ("newsletter_opt_in" as const);
 
@@ -371,6 +487,12 @@ export async function runNewsletterCampaignEnqueue(formData: FormData) {
       subjectLine,
       teaser,
       segment,
+    });
+    await logStaffCrmAction(supabase, user.id, {
+      action_type: "campaign_segment_enqueued",
+      entity_type: "comms_campaign",
+      entity_id: recordId || null,
+      payload: { campaign_slug: campaignId, segment, attempted: result.attempted },
     });
     revalidatePath("/admin/comms");
     const errQ =
@@ -387,7 +509,7 @@ export async function runNewsletterCampaignEnqueue(formData: FormData) {
 }
 
 export async function updateProductRequestStatus(formData: FormData) {
-  const { supabase } = await requireUserWithRole("staff");
+  const { supabase, user } = await requireUserWithRole("staff");
   const id = String(formData.get("id") || "").trim();
   const status = String(formData.get("status") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
@@ -438,6 +560,12 @@ export async function updateProductRequestStatus(formData: FormData) {
     redirect(`/admin/product-requests?error=${encodeURIComponent(error.message)}`);
   }
 
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "product_request_updated",
+    entity_type: "product_reservation_request",
+    entity_id: id,
+    payload: { status, expected_fulfillment_at: expectedFulfillmentAt, stock_notified_at: stockNotifiedAt },
+  });
   revalidatePath("/admin/product-requests");
   redirect("/admin/product-requests?success=request_updated");
 }
@@ -499,7 +627,7 @@ export async function saveGamePage(formData: FormData) {
 }
 
 export async function updateCustomerProfile(formData: FormData) {
-  const { supabase, profile: actor } = await requireUserWithRole("staff");
+  const { supabase, user, profile: actor } = await requireUserWithRole("staff");
   const id = String(formData.get("id") || "").trim();
   const fullName = String(formData.get("full_name") || "").trim();
   const interestsRaw = String(formData.get("interests") || "").trim();
@@ -509,12 +637,21 @@ export async function updateCustomerProfile(formData: FormData) {
 
   const newsletterOptIn = String(formData.get("newsletter_opt_in") || "") === "true";
   const marketingConsent = String(formData.get("marketing_consent") || "") === "true";
+  const stockLookaheadRaw = String(formData.get("stock_notification_lookahead_days") || "").trim();
+  let stockNotificationLookaheadDays: number | null = null;
+  if (stockLookaheadRaw) {
+    const n = Number.parseInt(stockLookaheadRaw, 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 730) {
+      stockNotificationLookaheadDays = n;
+    }
+  }
 
   const payload: Record<string, unknown> = {
     full_name: fullName || null,
     newsletter_opt_in: newsletterOptIn,
     marketing_consent: marketingConsent,
     interests,
+    stock_notification_lookahead_days: stockNotificationLookaheadDays,
     updated_at: new Date().toISOString(),
   };
 
@@ -531,6 +668,17 @@ export async function updateCustomerProfile(formData: FormData) {
     redirect(`/admin/crm/${id}?error=${encodeURIComponent(error.message)}`);
   }
 
+  await logStaffCrmAction(supabase, user.id, {
+    action_type: "customer_profile_updated",
+    entity_type: "profile",
+    entity_id: id,
+    payload: {
+      newsletter_opt_in: newsletterOptIn,
+      marketing_consent: marketingConsent,
+      stock_notification_lookahead_days: stockNotificationLookaheadDays,
+      role_changed: userMeetsRole(actor?.role, "admin") ? (payload.role as string | undefined) : undefined,
+    },
+  });
   revalidatePath(`/admin/crm/${id}`);
   revalidatePath("/admin/crm");
   redirect(`/admin/crm/${id}?success=profile_updated`);

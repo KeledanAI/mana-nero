@@ -1,0 +1,34 @@
+# Esegui manualmente (workflow_dispatch) contro un URL raggiungibile (preview Vercel, staging, prod).
+# Esempio: base_url = https://xxx.vercel.app — nessun dev server in CI (PLAYWRIGHT_SKIP_WEBSERVER=1).
+name: E2E on demand
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL dell’app (es. https://<preview>.vercel.app)"
+        required: true
+        type: string
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ inputs.base_url }}
+          PLAYWRIGHT_SKIP_WEBSERVER: "1"
+        run: npx playwright test e2e/admin-analytics-gate.spec.ts e2e/public-pages.spec.ts

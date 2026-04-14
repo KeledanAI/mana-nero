@@ -43,6 +43,11 @@ const links = [
     match: (p: string) => p.startsWith("/admin/comms"),
   },
   {
+    href: "/admin/analytics",
+    label: "Analytics",
+    match: (p: string) => p.startsWith("/admin/analytics"),
+  },
+  {
     href: "/admin/crm",
     label: "CRM",
     match: (p: string) => p.startsWith("/admin/crm"),
