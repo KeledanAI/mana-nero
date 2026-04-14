@@ -98,6 +98,13 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
   const errCode = typeof payload?.error === "string" ? payload.error : undefined;
 
   if (ok) {
+    const result = payload ?? {};
+    const slug =
+      typeof result.event_slug === "string" && result.event_slug.trim().length > 0
+        ? result.event_slug.trim()
+        : "";
+    const eventHref = slug ? `/events/${encodeURIComponent(slug)}` : "/events";
+
     return (
       <section className="mx-auto grid max-w-lg gap-4 px-4 py-16">
         <Card className="border-border/70 bg-card/85">
@@ -106,9 +113,14 @@ export default async function EventCheckInByTokenPage({ params }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-foreground/80">
             <p className="text-emerald-700">La tua presenza è stata registrata. Buon divertimento!</p>
-            <Link href="/events" className="font-medium text-primary hover:underline">
-              Torna agli eventi
-            </Link>
+            <div className="flex flex-wrap gap-4">
+              <Link href={eventHref} className="font-medium text-primary hover:underline">
+                {slug ? "Vai alla pagina dell’evento" : "Torna agli eventi"}
+              </Link>
+              <Link href="/events" className="font-medium text-foreground/70 hover:underline">
+                Tutti gli eventi
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </section>

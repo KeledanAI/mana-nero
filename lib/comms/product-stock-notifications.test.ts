@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   isEligibleForStockArrivalNotification,
+  staffStockSummaryIdempotencyKey,
   stockArrivalIdempotencyKey,
   stockScanBatchLimitFromEnv,
 } from "./product-stock-notifications";
@@ -12,6 +13,15 @@ describe("stockArrivalIdempotencyKey", () => {
     assert.equal(
       stockArrivalIdempotencyKey("550e8400-e29b-41d4-a716-446655440000"),
       "product_stock_arrival:550e8400-e29b-41d4-a716-446655440000",
+    );
+  });
+});
+
+describe("staffStockSummaryIdempotencyKey", () => {
+  it("buckets by UTC hour", () => {
+    assert.match(
+      staffStockSummaryIdempotencyKey(new Date("2026-06-15T14:30:00.000Z")),
+      /^product_stock_staff_summary:2026-06-15T14$/,
     );
   });
 });

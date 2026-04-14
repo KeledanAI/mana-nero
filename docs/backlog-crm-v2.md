@@ -18,6 +18,8 @@ Riferimenti: [PRD.md](../PRD.md), [ROADMAP.md](../ROADMAP.md) backlog V2. Questo
 - Policy RLS e ruoli: chi vede export CSV completi, log di accesso sensibili.
 - Convenzioni idempotency e audit per azioni staff irreversibili.
 
+**Implementato (primo slice in repo):** tabella `public.staff_crm_audit_log` (actor, `action_type`, `entity_type`, `entity_id`, `payload` jsonb) con RLS: select per staff, insert solo se `actor_id = auth.uid()` e ruolo staff; migrazione [`supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql`](../supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql). La UI può registrare eventi (es. rotazione token QR check-in) via insert autenticato. Stub `public.comms_campaigns` (slug, segmento, titolo) con RLS staff per iterazioni enqueue legate a record campagna.
+
 ## Fase 2 — CRM UI
 
 - Scheda cliente unica: timeline (iscrizioni, email outbox rilevanti, richieste, note).

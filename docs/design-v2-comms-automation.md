@@ -24,6 +24,7 @@ Estensioni additive al JSON (non regole business in jsonb critico oltre a `kind`
 | `event_reminder_24h` | ~24h prima di `events.starts_at` | `event_reminder_24h:{event_id}:{user_id}` |
 | (futuro) `event_reminder_7d` | 7 giorni prima | `event_reminder_7d:{event_id}:{user_id}` |
 | `campaign_segment` | Campagna staff (`/admin/comms`: newsletter opt-in o marketing consent) | `campaign:{segment}:{campaign_id}:{user_id}` |
+| `product_stock_staff_summary` | Digest opzionale per staff dopo cron stock (env `PRODUCT_STOCK_STAFF_SUMMARY_EMAIL`) | `product_stock_staff_summary:YYYY-MM-DDTHH` (ora UTC) |
 | (futuro) `waitlist_digest` | Digest posizione waitlist | `waitlist_digest:{registration_id}:{period}` |
 
 ## 4. Flusso reminder 24h

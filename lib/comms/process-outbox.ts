@@ -67,6 +67,40 @@ async function dispatchProductStockAvailableEmail(
   });
 }
 
+async function dispatchProductStockStaffSummaryEmail(payload: Record<string, unknown>): Promise<void> {
+  const toRaw = payload.staff_email;
+  const to = typeof toRaw === "string" ? toRaw.trim() : "";
+  if (!to || !to.includes("@")) {
+    throw new Error("staff_summary_email_missing");
+  }
+
+  const enqueued =
+    typeof payload.enqueued === "number"
+      ? payload.enqueued
+      : Number.parseInt(String(payload.enqueued ?? "0"), 10) || 0;
+  const marked =
+    typeof payload.marked === "number"
+      ? payload.marked
+      : Number.parseInt(String(payload.marked ?? "0"), 10) || 0;
+  const linesRaw = payload.lines;
+  const lines = Array.isArray(linesRaw)
+    ? linesRaw.filter((l): l is string => typeof l === "string").join("\n")
+    : "";
+
+  const subject = `Mana Nero — digest stock (${enqueued} notifiche accodate)`;
+  let bodyHtml = `<p>Riepilogo esecuzione cron <code>product-stock-notifications</code>.</p>`;
+  bodyHtml += `<p>Email cliente accodate in outbox: <strong>${escapeHtml(String(enqueued))}</strong> · Richieste marcate <code>stock_notified_at</code>: <strong>${escapeHtml(String(marked))}</strong></p>`;
+  if (lines) {
+    bodyHtml += `<pre style="white-space:pre-wrap;font-size:12px;">${escapeHtml(lines)}</pre>`;
+  }
+
+  await sendManaNeroEmail({
+    to,
+    subject,
+    sections: [{ title: "Mana Nero", bodyHtml }],
+  });
+}
+
 async function dispatchCampaignSegmentEmail(
   supabase: ReturnType<typeof createAdminClient>,
   payload: Record<string, unknown>,
@@ -134,6 +168,10 @@ async function dispatchEmail(
   const kind = payloadKind(row.payload);
   if (kind === "product_stock_available") {
     await dispatchProductStockAvailableEmail(supabase, row.payload);
+    return;
+  }
+  if (kind === "product_stock_staff_summary") {
+    await dispatchProductStockStaffSummaryEmail(row.payload);
     return;
   }
   if (kind === "campaign_segment") {

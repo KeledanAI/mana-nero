@@ -11,7 +11,7 @@ import {
 import { requireUserWithRole } from "@/lib/gamestore/authz";
 import { getSiteUrl } from "@/lib/site-url";
 import { notFound } from "next/navigation";
-import { checkInRegistration } from "../../actions";
+import { checkInRegistration, rotateRegistrationCheckInToken } from "../../actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -74,7 +74,15 @@ export default async function AdminEventDetailPage({
               </Link>
             </div>
           </div>
-          {firstParam(query.success) ? <p className="text-sm text-emerald-700">{firstParam(query.success)}</p> : null}
+          {firstParam(query.success) ? (
+            <p className="text-sm text-emerald-700">
+              {firstParam(query.success) === "qr_token_rotated"
+                ? "Link QR check-in rigenerato."
+                : firstParam(query.success) === "checked_in"
+                  ? "Check-in staff completato."
+                  : firstParam(query.success)}
+            </p>
+          ) : null}
           {firstParam(query.error) ? <p className="text-sm text-destructive">{firstParam(query.error)}</p> : null}
         </CardHeader>
       </Card>
@@ -126,6 +134,13 @@ export default async function AdminEventDetailPage({
                             checkInUrl={`${siteOrigin}/events/check-in/${registration.check_in_token}`}
                             label="Mostra al partecipante: apre il link o inquadra il QR."
                           />
+                          <form action={rotateRegistrationCheckInToken} className="mt-2">
+                            <input type="hidden" name="registration_id" value={registration.id} />
+                            <input type="hidden" name="event_id" value={id} />
+                            <SubmitButton type="submit" variant="outline" size="sm" pendingLabel="Rigenero…">
+                              Rigenera link QR
+                            </SubmitButton>
+                          </form>
                         </div>
                       ) : null}
                       <form action={checkInRegistration}>

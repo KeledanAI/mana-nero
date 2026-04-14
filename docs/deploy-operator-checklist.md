@@ -11,7 +11,7 @@ Usa questa lista in parallelo a [deploy-production-runbook.md](./deploy-producti
 
 - [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` rispondano `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
 - [ ] **Stripe (se usi pagamenti evento):** webhook verso `/api/webhooks/stripe` con `checkout.session.completed`; `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` su Vercel.
-- [ ] **Migrazioni:** l’istanza Postgres del progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente), incluse quelle per check-in QR (`20260417120000_event_registration_check_in_token.sql`: colonna `check_in_token`, RPC `event_check_in_by_token`).
+- [ ] **Migrazioni:** l’istanza Postgres del progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente), incluse check-in QR (`20260417120000_event_registration_check_in_token.sql`) e CRM/QR/comms stub (`20260418140000_crm_audit_qr_window_comms_campaigns.sql`: audit `staff_crm_audit_log`, `comms_campaigns`, finestra RPC check-in, `staff_rotate_registration_check_in_token`).
 
 ## Verifiche automatiche (locale con env che punta al target)
 

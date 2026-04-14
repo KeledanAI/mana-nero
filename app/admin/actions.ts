@@ -268,6 +268,40 @@ export async function checkInRegistration(formData: FormData) {
   redirect(`/admin/events/${eventId}?success=checked_in`);
 }
 
+export async function rotateRegistrationCheckInToken(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const registrationId = String(formData.get("registration_id") || "").trim();
+  const eventId = String(formData.get("event_id") || "").trim();
+
+  if (!registrationId || !eventId) {
+    redirect(`/admin/events/${eventId || "unknown"}?error=${encodeURIComponent("missing_ids")}`);
+  }
+
+  const { data, error } = await supabase.rpc("staff_rotate_registration_check_in_token", {
+    p_registration_id: registrationId,
+  });
+
+  const payload = data as { ok?: boolean; error?: string } | null;
+  if (error || !payload?.ok) {
+    redirect(
+      `/admin/events/${eventId}?error=${encodeURIComponent(
+        error?.message ?? payload?.error ?? "rotate_failed",
+      )}`,
+    );
+  }
+
+  await supabase.from("staff_crm_audit_log").insert({
+    actor_id: user.id,
+    action_type: "rotate_check_in_token",
+    entity_type: "event_registration",
+    entity_id: registrationId,
+    payload: { event_id: eventId },
+  });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  redirect(`/admin/events/${eventId}?success=qr_token_rotated`);
+}
+
 export async function saveEventCategory(formData: FormData) {
   const { supabase } = await requireUserWithRole("staff");
   const id = String(formData.get("id") || "").trim();

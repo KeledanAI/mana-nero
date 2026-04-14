@@ -39,6 +39,11 @@ export function stockScanBatchLimitFromEnv(): number {
   return Math.min(n, 500);
 }
 
+/** Una riga digest staff per fascia oraria UTC (idempotency outbox). */
+export function staffStockSummaryIdempotencyKey(now: Date): string {
+  return `product_stock_staff_summary:${now.toISOString().slice(0, 13)}`;
+}
+
 /**
  * Accoda email `product_stock_available` per richieste awaiting_stock in finestra,
  * poi imposta `stock_notified_at` per evitare ri-accodamenti (l'outbox gestisce retry invio).
@@ -104,6 +109,31 @@ export async function enqueueProductStockArrivalScan(
       errors.push(`${r.id} mark: ${updErr.message}`);
     } else {
       marked += 1;
+    }
+  }
+
+  const staffDigestTo = (process.env.PRODUCT_STOCK_STAFF_SUMMARY_EMAIL ?? "").trim();
+  if (staffDigestTo.includes("@") && enqueued > 0) {
+    try {
+      const lines = slice.map(
+        (row) =>
+          `- ${(row as ProductStockScanRow).product_name} (${(row as ProductStockScanRow).id.slice(0, 8)}…)`,
+      );
+      await enqueueMessageWithClient(supabase, {
+        idempotencyKey: staffStockSummaryIdempotencyKey(now),
+        channel: "email",
+        payload: {
+          kind: "product_stock_staff_summary",
+          staff_email: staffDigestTo,
+          enqueued,
+          marked,
+          lines,
+        },
+      });
+    } catch (e) {
+      errors.push(
+        `staff_summary: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
