@@ -1,0 +1,36 @@
+# Verifica opzionale: elenco migrazioni sempre; smoke Supabase se i secrets staging sono impostati.
+# Repository secrets (opzionali): STAGING_NEXT_PUBLIC_SUPABASE_URL, STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# (anon read-only consigliata sul progetto staging).
+name: Staging DB verify (optional)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify migrations list
+        run: npm run verify:migrations
+
+      - name: Optional smoke vs staging Supabase
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Segreti staging assenti: aggiungi STAGING_NEXT_PUBLIC_SUPABASE_URL e"
+            echo "STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY al repository per eseguire verify:supabase + smoke:test."
+            exit 0
+          fi
+          npm run verify:supabase && npm run smoke:test

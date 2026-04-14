@@ -40,6 +40,19 @@ Per controllo strict delle variabili tipo produzione senza lo script composito: 
 - [ ] **Post-deploy manuale:** sito pubblico, `/events`, login magic link; staff su `/admin` e un evento; oppure di nuovo `verify:release-stack` con env di produzione.
 - [ ] **CI:** workflow GitHub verde sulla branch principale; in locale `npm run ci` prima del push.
 
+### GitHub Actions — verifica database staging (opzionale)
+
+Workflow: [`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml) (`workflow_dispatch`).
+
+- [ ] **Repository secrets** (GitHub → Settings → Secrets and variables → Actions): imposta **`STAGING_NEXT_PUBLIC_SUPABASE_URL`** e **`STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`** con URL progetto e chiave **anon** del Supabase **staging** (read-only rispetto al ruolo anon; non usare `service_role` in CI).
+- [ ] **Esecuzione:** Actions → workflow **«Staging DB verify (optional)»** → **Run workflow**. Sempre: `npm ci` e `npm run verify:migrations`. Se entrambi i secret sono valorizzati, anche `npm run verify:supabase` e `npm run smoke:test` con `NEXT_PUBLIC_SUPABASE_*` presi da quei secret.
+
+Da terminale (richiede [GitHub CLI](https://cli.github.com/) autenticato sul repo):
+
+```bash
+gh workflow run "Staging DB verify (optional)"
+```
+
 ## Dopo merge su `main` (GitHub)
 
 Da eseguire quando il codice su `origin/main` include nuove migrazioni o nuove route cron (allineato a [ROADMAP.md](../ROADMAP.md) §205–231):
