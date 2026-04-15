@@ -127,12 +127,14 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
       </nav>
 
       {firstParam(query.success) ? (
-        <p className="text-sm text-emerald-700">
+        <p className="text-sm text-emerald-700" data-testid="crm-profile-flash">
           {firstParam(query.success) === "marketing_revoked"
             ? "Marketing consent revocato."
             : firstParam(query.success) === "newsletter_revoked"
               ? "Newsletter opt-in revocato; eventuali campagne segmentate in coda sono state annullate se possibile."
-              : firstParam(query.success)}
+              : firstParam(query.success) === "profile_updated"
+                ? "Profilo aggiornato."
+                : firstParam(query.success)}
         </p>
       ) : null}
       {firstParam(query.error) ? (
@@ -150,7 +152,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
             </div>
           </CardHeader>
           <CardContent>
-            <form action={updateCustomerProfile} className="grid gap-4">
+            <form action={updateCustomerProfile} className="grid gap-4" data-testid="crm-profile-form">
               <input type="hidden" name="id" value={subject.id} />
               <div className="grid gap-2">
                 <Label htmlFor="email">Email (auth)</Label>
@@ -195,6 +197,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
                 <Input
                   id="lead_stage"
                   name="lead_stage"
+                  data-testid="crm-lead-stage-input"
                   defaultValue={subject.lead_stage ?? ""}
                   placeholder="cold / warm / visit"
                 />
@@ -247,7 +250,7 @@ export default async function AdminCrmProfilePage({ params, searchParams }: Page
                   <code className="text-xs">PRODUCT_STOCK_EXPECTED_LOOKAHEAD_DAYS</code>.
                 </p>
               </div>
-              <SubmitButton className="w-fit" pendingLabel="Salvataggio...">
+              <SubmitButton className="w-fit" pendingLabel="Salvataggio..." data-testid="crm-save-profile">
                 Salva profilo
               </SubmitButton>
             </form>

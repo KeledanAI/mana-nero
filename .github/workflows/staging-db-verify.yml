@@ -1,6 +1,7 @@
-# Verifica opzionale: elenco migrazioni sempre; smoke Supabase se i secrets staging sono impostati.
-# Repository secrets (opzionali): STAGING_NEXT_PUBLIC_SUPABASE_URL, STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-# (anon read-only consigliata sul progetto staging).
+# Verifica opzionale: elenco migrazioni sempre; verify:supabase + smoke se i secrets staging sono impostati.
+# Repository secrets (opzionali):
+#   STAGING_NEXT_PUBLIC_SUPABASE_URL, STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (anon)
+#   STAGING_SUPABASE_SERVICE_ROLE_KEY — opzionale ma necessario per `smoke:test` (lo script usa service role).
 name: Staging DB verify (optional)
 
 on:
@@ -23,14 +24,20 @@ jobs:
       - name: Verify migrations list
         run: npm run verify:migrations
 
-      - name: Optional smoke vs staging Supabase
+      - name: Optional verify + smoke vs staging Supabase
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
             echo "Segreti staging assenti: aggiungi STAGING_NEXT_PUBLIC_SUPABASE_URL e"
-            echo "STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY al repository per eseguire verify:supabase + smoke:test."
+            echo "STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY al repository per eseguire verify:supabase (+ smoke opzionale)."
             exit 0
           fi
-          npm run verify:supabase && npm run smoke:test
+          npm run verify:supabase
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "STAGING_SUPABASE_SERVICE_ROLE_KEY assente: smoke:test richiede SUPABASE_SERVICE_ROLE_KEY; skip smoke."
+            exit 0
+          fi
+          npm run smoke:test

@@ -1,7 +1,7 @@
 /**
  * Esegue in sequenza i gate automatizzabili allineati al ROADMAP §218–229 e alla checklist operatore.
  *
- * 1. `verify:release-stack` — deve passare (Supabase + smoke RPC sul progetto puntato da .env.local).
+ * 1. `verify:release-stack` — deve passare (Supabase + smoke RPC; variabili da `.env.local` e/o `process.env`, vedi `scripts/load-supabase-env.mjs`).
  * 2. `verify:deploy` — strict produzione; se fallisce (es. localhost o manca CRON_SECRET), stampa promemoria
  *    voci manuali (Vercel log 200, Auth URL, Stripe) senza far fallire lo script (exit 0).
  *
@@ -15,7 +15,9 @@ console.log("=== 1/2 verify:release-stack (REST + smoke RPC) ===\n");
 try {
   execSync("npm run verify:release-stack", { stdio: "inherit", cwd });
 } catch {
-  console.error("\nverify:predeploy: verify:release-stack fallito. Controlla .env.local e il progetto Supabase.");
+  console.error(
+    "\nverify:predeploy: verify:release-stack fallito. Controlla `.env.local` / variabili d'ambiente e il progetto Supabase.",
+  );
   process.exit(1);
 }
 

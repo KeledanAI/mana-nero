@@ -12,6 +12,7 @@ import {
   runNewsletterCampaignEnqueue,
   saveCommsCampaignRecord,
 } from "../actions";
+import { formatCommsAdminPageError } from "@/lib/comms/comms-admin-errors";
 import { formatOutboxTimelineDetail, formatOutboxTimelineTitle, outboxPayloadKindLabel } from "@/lib/gamestore/crm-timeline";
 import { formatDateTime, getCommsCampaignsForStaff, getOutboxRowsForCampaignSlugStaff } from "@/lib/gamestore/data";
 
@@ -51,6 +52,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
   const attempted = firstParam(params.attempted);
   const campaignAttempted = firstParam(params.campaign_attempted);
   const campaignErrors = firstParam(params.campaign_errors);
+  const errorParam = firstParam(params.error)?.trim() ?? "";
 
   return (
     <section className="grid gap-6">
@@ -66,7 +68,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
           <p className="text-sm font-normal text-foreground/65">
             I messaggi transazionali passano dall&apos;outbox (
             <code className="text-xs">communication_outbox</code>). Qui puoi accodare i reminder
-            ~24h prima degli eventi senza inviare email dal browser.
+            ~7 giorni e ~24h prima degli eventi senza inviare email dal browser.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -116,49 +118,69 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
           </div>
 
           <p className="text-sm text-foreground/75">
-            In produzione lo stesso scan è eseguito dal cron Vercel su{" "}
+            In produzione gli scan (24h + 7 giorni) sono eseguiti dal cron Vercel su{" "}
             <code className="rounded bg-secondary px-1 text-xs">/api/cron/event-reminders</code>{" "}
             (stessi secret del worker outbox). Documentazione di progetto: file{" "}
             <code className="rounded bg-secondary px-1 text-xs">docs/design-v2-comms-automation.md</code>.
           </p>
 
           {events != null && attempted != null ? (
-            <p className="text-sm text-emerald-700">
-              Ultimo scan: {events} evento/i in finestra, {attempted} righe outbox tentate (duplicati
+            <p className="text-sm text-emerald-700" data-testid="comms-scan-flash">
+              Ultimo scan: {events} evento/i in finestre 24h/7g, {attempted} righe outbox tentate (duplicati
               ignorati da idempotency).
             </p>
           ) : null}
-          {firstParam(params.error) ? (
-            <p className="text-sm text-destructive">{firstParam(params.error)}</p>
+          {errorParam ? (
+            <p className="text-sm text-destructive" data-testid="comms-page-error">
+              {formatCommsAdminPageError(errorParam)}
+            </p>
           ) : null}
           {firstParam(params.success) === "record_saved" ? (
-            <p className="text-sm text-emerald-700">Record campagna salvato in tabella comms_campaigns.</p>
+            <p className="text-sm text-emerald-700" data-testid="comms-campaign-record-flash">
+              Record campagna salvato in tabella comms_campaigns.
+            </p>
           ) : null}
 
-          <form action={runEventReminderScan}>
-            <SubmitButton pendingLabel="Scansione in corso…">Esegui scan reminder 24h ora</SubmitButton>
+          <form action={runEventReminderScan} data-testid="comms-reminder-scan-form">
+            <SubmitButton
+              pendingLabel="Scansione in corso…"
+              data-testid="comms-reminder-scan-submit"
+            >
+              Esegui scan reminder eventi ora
+            </SubmitButton>
           </form>
 
           <div className="border-t border-border/60 pt-6">
             <p className="text-sm font-medium text-foreground/90">Campagna segmentata (primo slice)</p>
             <p className="mt-1 text-xs text-foreground/60">
               Accoda in outbox messaggi <code className="rounded bg-secondary px-1 text-xs">campaign_segment</code>{" "}
-              per segmento scelto (newsletter opt-in o marketing consent) con email nota (max 250 destinatari per
+              per segmento scelto (newsletter, marketing, waitlist o iscrizioni confermate) con email nota (max 250
+              destinatari per
               invocazione). Idempotency: <code className="text-xs">campaign:segment:slug:user_id</code>. Nessun
-              invio diretto: solo righe <code className="text-xs">pending</code> processate dal worker outbox.
+              invio diretto: solo righe <code className="text-xs">pending</code> processate dal worker outbox. Se
+              scegli un <strong>record salvato</strong>, slug e oggetto provengono dal DB: i campi manuali sotto sono
+              opzionali.
             </p>
             {campaignAttempted != null ? (
-              <p className="mt-2 text-sm text-emerald-700">
+              <p
+                className="mt-2 text-sm text-emerald-700"
+                data-testid="comms-campaign-enqueue-flash"
+              >
                 Ultima campagna: {campaignAttempted} destinatari considerati
                 {campaignErrors != null ? ` · errori enqueue: ${campaignErrors}` : ""}.
               </p>
             ) : null}
-            <form action={runNewsletterCampaignEnqueue} className="mt-4 grid max-w-lg gap-3">
+            <form
+              action={runNewsletterCampaignEnqueue}
+              className="mt-4 grid max-w-lg gap-3"
+              data-testid="comms-segmented-campaign-form"
+            >
               <div className="grid gap-2">
                 <Label htmlFor="comms_campaign_id">Usa record salvato (opzionale)</Label>
                 <select
                   id="comms_campaign_id"
                   name="comms_campaign_id"
+                  data-testid="comms-campaign-record-picker"
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   defaultValue=""
                 >
@@ -179,12 +201,14 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 <select
                   id="campaign_segment"
                   name="campaign_segment"
+                  data-testid="comms-campaign-enqueue-segment"
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   defaultValue="newsletter_opt_in"
                 >
                   <option value="newsletter_opt_in">Newsletter opt-in</option>
                   <option value="marketing_consent">Marketing consent (profilo)</option>
                   <option value="registration_waitlisted">Iscritti in lista d&apos;attesa (waitlisted)</option>
+                  <option value="registration_confirmed">Iscrizioni confermate (almeno un evento)</option>
                 </select>
               </div>
               <div className="grid gap-2">
@@ -192,7 +216,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 <Input
                   id="campaign_id"
                   name="campaign_id"
-                  required
+                  data-testid="comms-campaign-id-input"
                   maxLength={64}
                   placeholder="estate-2026"
                   className="font-mono text-sm"
@@ -203,7 +227,7 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 <Input
                   id="campaign_subject"
                   name="campaign_subject"
-                  required
+                  data-testid="comms-campaign-subject-input"
                   maxLength={120}
                   placeholder="Mana Nero — novità in negozio"
                 />
@@ -219,7 +243,9 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                   placeholder="Breve messaggio per i clienti iscritti alla newsletter…"
                 />
               </div>
-              <SubmitButton pendingLabel="Accodamento…">Accoda campagna segmentata</SubmitButton>
+              <SubmitButton pendingLabel="Accodamento…" data-testid="comms-segmented-campaign-submit">
+                Accoda campagna segmentata
+              </SubmitButton>
             </form>
           </div>
 
@@ -252,12 +278,13 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                 ))}
               </ul>
             )}
-            <form action={saveCommsCampaignRecord} className="mt-4 grid max-w-lg gap-3">
+            <form action={saveCommsCampaignRecord} className="mt-4 grid max-w-lg gap-3" data-testid="comms-campaign-record-form">
               <div className="grid gap-2">
                 <Label htmlFor="record_slug">Slug campagna</Label>
                 <Input
                   id="record_slug"
                   name="record_slug"
+                  data-testid="comms-campaign-record-slug"
                   required
                   maxLength={64}
                   placeholder="estate-2026"
@@ -266,19 +293,28 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="record_title">Titolo interno</Label>
-                <Input id="record_title" name="record_title" required maxLength={200} placeholder="Campagna estate" />
+                <Input
+                  id="record_title"
+                  name="record_title"
+                  data-testid="comms-campaign-record-title"
+                  required
+                  maxLength={200}
+                  placeholder="Campagna estate"
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="record_segment">Segmento</Label>
                 <select
                   id="record_segment"
                   name="record_segment"
+                  data-testid="comms-campaign-record-segment"
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   defaultValue="newsletter_opt_in"
                 >
                   <option value="newsletter_opt_in">newsletter_opt_in</option>
                   <option value="marketing_consent">marketing_consent</option>
                   <option value="registration_waitlisted">registration_waitlisted</option>
+                  <option value="registration_confirmed">registration_confirmed</option>
                 </select>
               </div>
               <div className="grid gap-2">
@@ -295,7 +331,9 @@ export default async function AdminCommsPage({ searchParams }: PageProps) {
                   className="min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
-              <SubmitButton pendingLabel="Salvataggio…">Salva record campagna</SubmitButton>
+              <SubmitButton pendingLabel="Salvataggio…" data-testid="comms-campaign-record-submit">
+                Salva record campagna
+              </SubmitButton>
             </form>
           </div>
 

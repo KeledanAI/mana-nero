@@ -11,8 +11,20 @@ Applicazione per eventi, prenotazioni, CRM staff, comunicazioni via outbox e pre
 | [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md) | Checklist operatore (env, cron, migrazioni, CI opzionale staging) |
 | [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md) | Runbook deploy produzione |
 | [docs/sprint-v2-next.md](docs/sprint-v2-next.md) | Sprint `v2-next-1` (chiuso): storie S1–S7, DoD, log routine |
+| [docs/sprint-v2-next-2.md](docs/sprint-v2-next-2.md) | Sprint `v2-next-2`: reminder 7g + e2e mutazione CRM |
+| [docs/sprint-v2-next-3.md](docs/sprint-v2-next-3.md) | Sprint `v2-next-3`: CI staging env merge + e2e scan comms |
+| [docs/sprint-v2-next-4.md](docs/sprint-v2-next-4.md) | Sprint `v2-next-4`: e2e staff record `comms_campaigns` |
+| [docs/sprint-v2-next-5.md](docs/sprint-v2-next-5.md) | Sprint `v2-next-5`: grafico analytics campagne per slug |
+| [docs/sprint-v2-next-6.md](docs/sprint-v2-next-6.md) | Sprint `v2-next-6`: segmento comms `registration_confirmed` |
+| [docs/sprint-v2-next-7.md](docs/sprint-v2-next-7.md) | Sprint `v2-next-7`: e2e comms + `data-testid` segmenti |
+| [docs/sprint-v2-next-8.md](docs/sprint-v2-next-8.md) | Sprint `v2-next-8`: e2e enqueue campagna segmentata |
+| [docs/sprint-v2-next-9.md](docs/sprint-v2-next-9.md) | Sprint `v2-next-9`: e2e enqueue da record `comms_campaigns` |
+| [docs/sprint-v2-next-10.md](docs/sprint-v2-next-10.md) | Sprint `v2-next-10`: UX form enqueue + validazione server |
+| [docs/sprint-v2-next-11.md](docs/sprint-v2-next-11.md) | Sprint `v2-next-11`: messaggi errore comms leggibili |
+| [docs/sprint-v2-next-12.md](docs/sprint-v2-next-12.md) | Sprint `v2-next-12`: euristiche errori Postgres su comms |
+| [docs/sprint-v2-next-13.md](docs/sprint-v2-next-13.md) | Sprint `v2-next-13`: e2e slug duplicato comms |
 | [docs/backlog-crm-v2.md](docs/backlog-crm-v2.md) | Epic CRM / analytics e priorità successive |
-| [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md) | Design outbox / reminder / campagne |
+| [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md) | Outbox, reminder, campagne segmentate staff (`newsletter_opt_in`, `marketing_consent`, `registration_waitlisted`, `registration_confirmed`) |
 | [docs/design-v2-event-payments.md](docs/design-v2-event-payments.md) | Design pagamenti evento (Stripe + RPC) |
 
 ## Sviluppo locale

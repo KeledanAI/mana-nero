@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { isCronBearerAuthorized } from "@/lib/comms/cron-auth";
-import { enqueueEventReminder24hScan } from "@/lib/comms/event-reminders";
+import { enqueueEventReminderScansCombined } from "@/lib/comms/event-reminders";
 
 /**
- * Accoda reminder email ~24h prima degli eventi (outbox idempotente).
+ * Accoda reminder email ~24h e ~7 giorni prima degli eventi (outbox idempotente, chiavi distinte).
  * Stessi secret Bearer di GET /api/cron/outbox.
  */
 export async function GET(request: Request) {
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await enqueueEventReminder24hScan();
+    const result = await enqueueEventReminderScansCombined();
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

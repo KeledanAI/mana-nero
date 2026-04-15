@@ -9,7 +9,7 @@ import {
   normalizeCampaignId,
   parseStaffCampaignSegment,
 } from "@/lib/comms/campaign-segment-enqueue";
-import { enqueueEventReminder24hScan } from "@/lib/comms/event-reminders";
+import { enqueueEventReminderScansCombined } from "@/lib/comms/event-reminders";
 import { enqueueMessage } from "@/lib/comms/enqueue";
 import { runBookingAction } from "@/lib/domain/booking";
 import { logStaffCrmAction } from "@/lib/gamestore/crm-audit";
@@ -501,10 +501,13 @@ export async function deleteEventCategory(formData: FormData) {
 export async function runEventReminderScan() {
   await requireUserWithRole("staff");
   try {
-    const result = await enqueueEventReminder24hScan();
+    const { reminder24h, reminder7d } = await enqueueEventReminderScansCombined();
+    const eventsScanned = reminder24h.eventsScanned + reminder7d.eventsScanned;
+    const remindersAttempted =
+      reminder24h.remindersAttempted + reminder7d.remindersAttempted;
     revalidatePath("/admin/comms");
     redirect(
-      `/admin/comms?events=${encodeURIComponent(String(result.eventsScanned))}&attempted=${encodeURIComponent(String(result.remindersAttempted))}`,
+      `/admin/comms?events=${encodeURIComponent(String(eventsScanned))}&attempted=${encodeURIComponent(String(remindersAttempted))}`,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "reminder_scan_failed";
@@ -539,6 +542,20 @@ export async function runNewsletterCampaignEnqueue(formData: FormData) {
     if (!subjectLine.trim()) {
       redirect(`/admin/comms?error=${encodeURIComponent("subject_required_for_record")}`);
     }
+  }
+
+  const normalizedCampaignId = normalizeCampaignId(campaignId);
+  if (!normalizedCampaignId) {
+    redirect(
+      `/admin/comms?error=${encodeURIComponent(
+        recordId ? "campaign_slug_invalid_in_record" : "campaign_id_invalid",
+      )}`,
+    );
+  }
+  campaignId = normalizedCampaignId;
+
+  if (!recordId && !subjectLine.trim()) {
+    redirect(`/admin/comms?error=${encodeURIComponent("subject_required")}`);
   }
 
   const segment = parseStaffCampaignSegment(segmentRaw);

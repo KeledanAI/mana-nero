@@ -11,6 +11,7 @@ describe("parseStaffCampaignSegment", () => {
   it("maps known segments and defaults", () => {
     assert.equal(parseStaffCampaignSegment("marketing_consent"), "marketing_consent");
     assert.equal(parseStaffCampaignSegment("registration_waitlisted"), "registration_waitlisted");
+    assert.equal(parseStaffCampaignSegment("registration_confirmed"), "registration_confirmed");
     assert.equal(parseStaffCampaignSegment("newsletter_opt_in"), "newsletter_opt_in");
     assert.equal(parseStaffCampaignSegment(""), "newsletter_opt_in");
     assert.equal(parseStaffCampaignSegment("other"), "newsletter_opt_in");
@@ -30,6 +31,10 @@ describe("campaignSegmentIdempotencyKey", () => {
     assert.equal(
       campaignSegmentIdempotencyKey("registration_waitlisted", "promo-wl", "u2"),
       "campaign:registration_waitlisted:promo-wl:u2",
+    );
+    assert.equal(
+      campaignSegmentIdempotencyKey("registration_confirmed", "promo-ok", "u3"),
+      "campaign:registration_confirmed:promo-ok:u3",
     );
   });
 });

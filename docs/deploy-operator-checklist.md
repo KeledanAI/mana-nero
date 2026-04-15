@@ -11,7 +11,7 @@ Usa questa lista in parallelo a [deploy-production-runbook.md](./deploy-producti
 
 ## Worker e database
 
-- [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` rispondano `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
+- [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` rispondano `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida). Il path `event-reminders` accoda sia `event_reminder_24h` sia `event_reminder_7d` (stesso job, JSON con `reminder24h` / `reminder7d`).
 - [ ] **Stripe (se usi pagamenti evento):** webhook verso `/api/webhooks/stripe` con `checkout.session.completed`; `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` su Vercel.
 - [ ] **Migrazioni:** l’istanza Postgres del progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente), incluse check-in QR (`20260417120000_event_registration_check_in_token.sql`) e CRM/QR/comms stub (`20260418140000_crm_audit_qr_window_comms_campaigns.sql`: audit `staff_crm_audit_log`, `comms_campaigns`, finestra RPC check-in, `staff_rotate_registration_check_in_token`).
 
@@ -46,8 +46,8 @@ Per controllo strict delle variabili tipo produzione senza lo script composito: 
 
 Workflow: [`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml) (`workflow_dispatch`).
 
-- [ ] **Repository secrets** (GitHub → Settings → Secrets and variables → Actions): imposta **`STAGING_NEXT_PUBLIC_SUPABASE_URL`** e **`STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`** con URL progetto e chiave **anon** del Supabase **staging** (read-only rispetto al ruolo anon; non usare `service_role` in CI).
-- [ ] **Esecuzione:** Actions → workflow **«Staging DB verify (optional)»** → **Run workflow**. Sempre: `npm ci` e `npm run verify:migrations`. Se entrambi i secret sono valorizzati, anche `npm run verify:supabase` e `npm run smoke:test` con `NEXT_PUBLIC_SUPABASE_*` presi da quei secret.
+- [ ] **Repository secrets** (GitHub → Settings → Secrets and variables → Actions): imposta **`STAGING_NEXT_PUBLIC_SUPABASE_URL`** e **`STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`** con URL progetto e chiave **anon** del Supabase **staging** (read-only rispetto al ruolo anon). Opzionale: **`STAGING_SUPABASE_SERVICE_ROLE_KEY`** — se presente, il job esegue anche `npm run smoke:test` (lo smoke richiede service role sul server di test; valuta il rischio di esporre il secret in Actions rispetto al beneficio).
+- [ ] **Esecuzione:** Actions → workflow **«Staging DB verify (optional)»** → **Run workflow**. Sempre: `npm ci` e `npm run verify:migrations`. Con URL + anon: `npm run verify:supabase`. Con anche service role staging: anche `npm run smoke:test` (variabili passate al processo Node, senza `.env.local` nel runner).
 
 Da terminale (richiede [GitHub CLI](https://cli.github.com/) autenticato sul repo):
 
@@ -63,3 +63,7 @@ Da eseguire quando il codice su `origin/main` include nuove migrazioni o nuove r
 - [ ] **Subito dopo il push DB:** `npm run verify:after-migrations` (o `npm run verify:predeploy` se vuoi anche il gate `verify:deploy` con env mirror prod).
 - [ ] **Vercel:** attendi deploy automatico da `main`; controlla log runtime e cron (quattro path GET, incluso `product-stock-notifications`).
 - [ ] **Nessuna migrazione nuova in merge:** comunque `npm run verify:release-stack` con `.env.local` che punta al progetto Supabase di produzione prima di considerare il rilascio chiuso.
+
+### Allineamento per ambiente (dev / staging / prod)
+
+Ogni progetto Supabase è separato: ripeti **`supabase link`** (o ref esplicito) e **`supabase db push`** + **`npm run verify:after-migrations`** (con `.env` / secret che puntano a quell’istanza). Gli script `verify:supabase` e `smoke:test` leggono [`.env.local`](.env.local) e **sovrascrivono** con variabili d’ambiente già impostate (utile in CI senza file locale) — vedi [`scripts/load-supabase-env.mjs`](../scripts/load-supabase-env.mjs).

@@ -151,7 +151,7 @@ Core principle:
 
 ## Features
 
-> **Nota implementazione (repository):** i primi slice V2 effettivamente presenti nel codice (pagamenti Stripe, reminder/campagne outbox, check-in QR, CRM/analytics staff, stock alert, ecc.) sono descritti in [ROADMAP.md](./ROADMAP.md) (tabella «Stato implementazione») e nello sprint [docs/sprint-v2-next.md](./docs/sprint-v2-next.md). La waitlist strutturata usa **`event_registrations`** con stato `waitlisted` (nessuna tabella separata `event_waitlist` nel DB attuale).
+> **Nota implementazione (repository):** i primi slice V2 effettivamente presenti nel codice (pagamenti Stripe, reminder/campagne outbox, check-in QR, CRM/analytics staff, stock alert, ecc.) sono descritti in [ROADMAP.md](./ROADMAP.md) (tabella «Stato implementazione»), nello sprint [docs/sprint-v2-next.md](./docs/sprint-v2-next.md) e nell’**indice sprint successivi** in [docs/backlog-crm-v2.md](./docs/backlog-crm-v2.md). La waitlist strutturata usa **`event_registrations`** con stato `waitlisted` (nessuna tabella separata `event_waitlist` nel DB attuale). Le campagne staff su outbox (`campaign_segment`) supportano anche il segmento **`registration_confirmed`** (profili con almeno un’iscrizione `confirmed`), oltre a newsletter, marketing e waitlist — vedi [docs/design-v2-comms-automation.md](./docs/design-v2-comms-automation.md).
 
 ### 4.1 Event Enhancements
 - Online payments
@@ -163,7 +163,7 @@ Core principle:
 ---
 
 ### 4.2 CRM Expansion
-- Advanced segmentation
+- Advanced segmentation (initial in-repo slice: staff **segment campaigns** via `campaign_segment` / `comms_campaigns` on the email outbox — see [docs/design-v2-comms-automation.md](./docs/design-v2-comms-automation.md))
 - Loyalty scoring
 - Behavior tracking
 
@@ -175,6 +175,7 @@ Core principle:
 - Automated flows:
   - event reminders
   - waitlist notifications
+  - staff **segment campaigns** via outbox (`campaign_segment`): newsletter opt-in, marketing consent, waitlisted registrations, **confirmed registrations** (same outbox idempotency pattern as other segments; see [docs/design-v2-comms-automation.md](./docs/design-v2-comms-automation.md))
 
 ---
 

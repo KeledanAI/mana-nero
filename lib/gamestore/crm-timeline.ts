@@ -21,6 +21,8 @@ function segmentKindLabel(segment: string): string {
       return "Marketing";
     case "registration_waitlisted":
       return "Waitlist iscrizioni";
+    case "registration_confirmed":
+      return "Iscrizioni confermate";
     default:
       return segment.replaceAll("_", " ");
   }
@@ -33,6 +35,8 @@ export function outboxPayloadKindLabel(kind: string): string {
       return "Campagna segmentata";
     case "event_reminder_24h":
       return "Reminder evento (24h)";
+    case "event_reminder_7d":
+      return "Reminder evento (7 giorni)";
     case "product_stock_available":
       return "Stock disponibile";
     case "product_stock_staff_summary":
@@ -105,6 +109,10 @@ function formatOutboxSkipLabel(code: string): string {
       return "saltato (newsletter revocata)";
     case "marketing_consent_revoked":
       return "saltato (marketing revocato)";
+    case "not_on_waitlist":
+      return "saltato (non in lista d'attesa)";
+    case "not_confirmed_registration":
+      return "saltato (nessuna iscrizione confermata)";
     default:
       return `saltato (${code.replaceAll("_", " ")})`;
   }

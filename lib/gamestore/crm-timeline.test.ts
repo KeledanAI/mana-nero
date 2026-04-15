@@ -13,6 +13,7 @@ describe("outboxPayloadKindLabel", () => {
   it("maps known kinds", () => {
     assert.equal(outboxPayloadKindLabel("campaign_segment"), "Campagna segmentata");
     assert.equal(outboxPayloadKindLabel("event_reminder_24h"), "Reminder evento (24h)");
+    assert.equal(outboxPayloadKindLabel("event_reminder_7d"), "Reminder evento (7 giorni)");
   });
 });
 
@@ -50,6 +51,23 @@ describe("formatOutboxTimelineDetail", () => {
     assert.match(d, /Tentativi: 1/);
   });
 
+  it("labels registration_confirmed segment", () => {
+    const d = formatOutboxTimelineDetail({
+      status: "pending",
+      payload: {
+        kind: "campaign_segment",
+        subject_line: "Grazie per la prenotazione",
+        campaign_id: "torneo-maggio",
+        segment_kind: "registration_confirmed",
+      },
+      idempotency_key: "campaign:registration_confirmed:torneo-maggio:user-1",
+      last_error: null,
+      scheduled_at: null,
+      attempt_count: 0,
+    });
+    assert.match(d, /Segmento: Iscrizioni confermate/);
+  });
+
   it("humanizes OUTBOX_SKIP last_error", () => {
     const d = formatOutboxTimelineDetail({
       status: "cancelled",
@@ -60,6 +78,18 @@ describe("formatOutboxTimelineDetail", () => {
       attempt_count: 0,
     });
     assert.match(d, /marketing revocato/);
+  });
+
+  it("humanizes OUTBOX_SKIP not_confirmed_registration", () => {
+    const d = formatOutboxTimelineDetail({
+      status: "cancelled",
+      payload: { kind: "campaign_segment", segment_kind: "registration_confirmed" },
+      idempotency_key: "k",
+      last_error: "OUTBOX_SKIP:not_confirmed_registration",
+      scheduled_at: null,
+      attempt_count: 0,
+    });
+    assert.match(d, /nessuna iscrizione confermata/);
   });
 });
 

@@ -38,6 +38,7 @@ Spunta le righe quando la story è **merged** e verificata in ambiente di riferi
 ### S3 — Segmenti campagna aggiuntivi (Comms)
 
 - [x] Segmento **`registration_waitlisted`**: destinatari = profili con almeno un’iscrizione `event_registrations.status = waitlisted` ([`lib/comms/campaign-segment-enqueue.ts`](../lib/comms/campaign-segment-enqueue.ts)); CHECK su [`comms_campaigns`](../supabase/migrations/20260422130000_q2_crm_comms_outbox_consolidated.sql); RLS invariata.
+- [x] Segmento **`registration_confirmed`**: destinatari = profili con almeno un’iscrizione `event_registrations.status = confirmed`; CHECK esteso in [`20260423103000_comms_campaign_segment_registration_confirmed.sql`](../supabase/migrations/20260423103000_comms_campaign_segment_registration_confirmed.sql); worker con skip `OUTBOX_SKIP:not_confirmed_registration` se l’iscrizione non è più confermata al dispatch ([`lib/comms/process-outbox.ts`](../lib/comms/process-outbox.ts)); dettaglio sprint [sprint-v2-next-6.md](./sprint-v2-next-6.md).
 - [x] UI [`/admin/comms`](../app/admin/comms/page.tsx) + test [`lib/comms/campaign-segment-enqueue.test.ts`](../lib/comms/campaign-segment-enqueue.test.ts).
 
 ### S4 — CRM: telefono + / o tag e lead (schema + UI)
@@ -82,7 +83,7 @@ Spunta le righe quando la story è **merged** e verificata in ambiente di riferi
 | Data fine   | 2026-04-22 (chiusura documentale `v2-next-1`) |
 | Ambiente DB | Progetto Supabase collegato in locale (`supabase link`); routine deploy verificata al 2026-04-14 (vedi log) |
 
-Il backlog epic è aggiornato in [backlog-crm-v2.md](./backlog-crm-v2.md) («Priorità successive»). Per il **prossimo** incremento misurabile aprire uno sprint successivo (es. `v2-next-2`) con obiettivo e DoD copiati da qui.
+Il backlog epic è aggiornato in [backlog-crm-v2.md](./backlog-crm-v2.md) («Priorità successive»). Sprint successivi: **[sprint-v2-next-2.md](./sprint-v2-next-2.md)** (`v2-next-2`), **[sprint-v2-next-3.md](./sprint-v2-next-3.md)** (`v2-next-3`), **[sprint-v2-next-4.md](./sprint-v2-next-4.md)** (`v2-next-4`), **[sprint-v2-next-5.md](./sprint-v2-next-5.md)** (`v2-next-5`).
 
 ## Log routine (automazione / verifica)
 

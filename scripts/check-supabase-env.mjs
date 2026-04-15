@@ -1,14 +1,14 @@
 /**
- * Verifica che .env.local contenga le variabili Supabase e che l'API REST risponda
- * (tabella `events` presente = migrazioni applicate in linea di massima).
+ * Verifica che le variabili Supabase siano disponibili (.env.local e/o process.env)
+ * e che l'API REST risponda (tabella `events` presente = migrazioni applicate in linea di massima).
  *
  * Uso: dalla root del repo
  *   node scripts/check-supabase-env.mjs
  */
-import { readFileSync, existsSync } from "node:fs";
 import https from "node:https";
-import { resolve } from "node:path";
 import { URL } from "node:url";
+
+import { loadSupabaseEnv } from "./load-supabase-env.mjs";
 
 function httpsGetJson(urlString, headers) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -32,33 +32,8 @@ function httpsGetJson(urlString, headers) {
   });
 }
 
-function loadEnvLocal() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) {
-    console.error("Manca .env.local nella root del progetto.");
-    throw new Error("missing .env.local");
-  }
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    let val = trimmed.slice(eq + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    env[key] = val;
-  }
-  return env;
-}
-
 async function main() {
-  const env = loadEnvLocal();
+  const env = loadSupabaseEnv();
   const url = (env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key =
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -68,9 +43,9 @@ async function main() {
 
   if (!url || !key) {
     console.error(
-      "Configura NEXT_PUBLIC_SUPABASE_URL e una chiave publishable/anon in .env.local",
+      "Configura NEXT_PUBLIC_SUPABASE_URL e una chiave publishable/anon in .env.local o nelle variabili d'ambiente.",
     );
-    throw new Error("missing Supabase URL or anon key in .env.local");
+    throw new Error("missing Supabase URL or anon key");
   }
 
   const rest = `${url}/rest/v1/events?select=id&limit=1`;

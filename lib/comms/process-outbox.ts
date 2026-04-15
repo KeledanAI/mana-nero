@@ -139,7 +139,9 @@ async function dispatchCampaignSegmentEmail(
       ? "marketing_consent"
       : segmentKindStr === "registration_waitlisted"
         ? "registration_waitlisted"
-        : "newsletter_opt_in";
+        : segmentKindStr === "registration_confirmed"
+          ? "registration_confirmed"
+          : "newsletter_opt_in";
 
   if (sk === "marketing_consent" && !profile?.marketing_consent) {
     throw outboxSkipError("marketing_consent_revoked");
@@ -158,6 +160,19 @@ async function dispatchCampaignSegmentEmail(
     }
     if (!count || count < 1) {
       throw outboxSkipError("not_on_waitlist");
+    }
+  }
+  if (sk === "registration_confirmed") {
+    const { count, error: cErr } = await supabase
+      .from("event_registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "confirmed");
+    if (cErr) {
+      throw new Error(cErr.message);
+    }
+    if (!count || count < 1) {
+      throw outboxSkipError("not_confirmed_registration");
     }
   }
 
@@ -182,7 +197,9 @@ async function dispatchCampaignSegmentEmail(
       ? "Marketing (consenso profilo)"
       : segmentKindStr === "registration_waitlisted"
         ? "Lista d'attesa (iscrizioni waitlisted)"
-        : "Newsletter opt-in";
+        : segmentKindStr === "registration_confirmed"
+          ? "Iscrizioni confermate (almeno un evento)"
+          : "Newsletter opt-in";
   bodyHtml += `<p style="font-size:11px;color:#888;">Segmento: ${escapeHtml(segmentLabel)}</p>`;
 
   await sendManaNeroEmail({
@@ -270,6 +287,11 @@ async function dispatchEmail(
   } else if (kind === "event_reminder_24h") {
     subject = `Promemoria — ${escapeHtml(title)} domani`;
     bodyHtml += `<p><strong>${escapeHtml(title)}</strong> in programma tra circa 24 ore.</p>`;
+    if (startsAt) bodyHtml += `<p>Data e ora: ${escapeHtml(startsAt)}</p>`;
+    bodyHtml += `<p><a href="${escapeHtml(eventUrl)}" style="color:#fafafa;">Apri scheda evento</a></p>`;
+  } else if (kind === "event_reminder_7d") {
+    subject = `Promemoria — ${escapeHtml(title)} tra una settimana`;
+    bodyHtml += `<p><strong>${escapeHtml(title)}</strong> in programma tra circa sette giorni.</p>`;
     if (startsAt) bodyHtml += `<p>Data e ora: ${escapeHtml(startsAt)}</p>`;
     bodyHtml += `<p><a href="${escapeHtml(eventUrl)}" style="color:#fafafa;">Apri scheda evento</a></p>`;
   } else {

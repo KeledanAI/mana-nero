@@ -3,6 +3,10 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
 import {
+  buildCampaignSlugStackChart,
+  outboxStatusBarClass,
+} from "@/lib/gamestore/analytics-campaign-slug-chart";
+import {
   countEventRegistrationsCreatedInRangeStaff,
   countProductRequestsCreatedInRangeStaff,
 } from "@/lib/gamestore/data";
@@ -147,6 +151,7 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
   const campaignSlugRows: CampaignSlugRow[] = Array.isArray(campaignBySlugRpc.data)
     ? (campaignBySlugRpc.data as CampaignSlugRow[])
     : [];
+  const campaignSlugChartRows = buildCampaignSlugStackChart(campaignSlugRows, 12);
   const waitlistSummary =
     !waitlistRpc.error && waitlistRpc.data && typeof waitlistRpc.data === "object"
       ? (waitlistRpc.data as Record<string, number>)
@@ -349,6 +354,41 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps) {
                   </tbody>
                 </table>
               </div>
+              {campaignSlugChartRows.length > 0 ? (
+                <div className="mt-6" data-testid="analytics-campaign-slug-chart-section">
+                  <p className="text-sm font-medium text-foreground/90">Grafico a barre (slug × stato outbox)</p>
+                  <p className="mt-1 text-xs text-foreground/60">
+                    Barre impilate per i principali slug nel periodo; larghezze proporzionali ai conteggi per
+                    stato.
+                  </p>
+                  <ul className="mt-4 space-y-4" data-testid="analytics-campaign-slug-bars">
+                    {campaignSlugChartRows.map((row) => (
+                      <li key={row.slug} className="grid gap-1.5 text-sm">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-mono text-xs text-foreground/85">{row.slug}</span>
+                          <span className="tabular-nums text-xs text-foreground/60">totale {row.total}</span>
+                        </div>
+                        <div
+                          className="flex h-3 w-full overflow-hidden rounded-full bg-secondary"
+                          title={row.segments.map((s) => `${s.status}: ${s.n}`).join(" · ")}
+                        >
+                          {row.segments.map((seg) => (
+                            <div
+                              key={`${row.slug}:${seg.status}`}
+                              className={`h-full min-w-[3px] shrink-0 ${outboxStatusBarClass(seg.status)}`}
+                              style={{ flexGrow: seg.n, flexBasis: 0 }}
+                              title={`${seg.status}: ${seg.n} (${seg.pct.toFixed(1)}%)`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-foreground/50">
+                          {row.segments.map((s) => `${s.status} ${s.n}`).join(" · ")}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

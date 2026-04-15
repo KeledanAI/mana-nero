@@ -43,19 +43,31 @@ Riferimenti: [PRD.md](../PRD.md), [ROADMAP.md](../ROADMAP.md) backlog V2. Questo
 
 ## Sprint dedicato (tracciamento)
 
-Backlog V2 prossimo lavoro operativo: **[docs/sprint-v2-next.md](./sprint-v2-next.md)** (storie S1–S7, DoD, fuori scope).
+- Chiuso: **[docs/sprint-v2-next.md](./sprint-v2-next.md)** (`v2-next-1`, S1–S7).
+- Chiuso: **[docs/sprint-v2-next-2.md](./sprint-v2-next-2.md)** (`v2-next-2`, reminder 7g + e2e CRM).
+- Chiuso: **[docs/sprint-v2-next-3.md](./sprint-v2-next-3.md)** (`v2-next-3`, CI staging + e2e comms scan).
+- Chiuso: **[docs/sprint-v2-next-4.md](./sprint-v2-next-4.md)** (`v2-next-4`, e2e record `comms_campaigns`).
+- Chiuso: **[docs/sprint-v2-next-5.md](./sprint-v2-next-5.md)** (`v2-next-5`, grafico analytics slug campagne).
+- Chiuso: **[docs/sprint-v2-next-6.md](./sprint-v2-next-6.md)** (`v2-next-6`, segmento comms `registration_confirmed`).
+- Chiuso: **[docs/sprint-v2-next-7.md](./sprint-v2-next-7.md)** (`v2-next-7`, e2e + `data-testid` comms per `registration_confirmed`).
+- Chiuso: **[docs/sprint-v2-next-8.md](./sprint-v2-next-8.md)** (`v2-next-8`, e2e enqueue campagna segmentata).
+- Chiuso: **[docs/sprint-v2-next-9.md](./sprint-v2-next-9.md)** (`v2-next-9`, e2e enqueue da record `comms_campaigns`).
+- Chiuso: **[docs/sprint-v2-next-10.md](./sprint-v2-next-10.md)** (`v2-next-10`, UX form enqueue + validazione server).
+- Chiuso: **[docs/sprint-v2-next-11.md](./sprint-v2-next-11.md)** (`v2-next-11`, messaggi errore comms leggibili).
+- Chiuso: **[docs/sprint-v2-next-12.md](./sprint-v2-next-12.md)** (`v2-next-12`, euristiche messaggi Postgres su comms).
+- Attivo / ultimo incremento documentato: **[docs/sprint-v2-next-13.md](./sprint-v2-next-13.md)** (`v2-next-13`, e2e slug duplicato comms + messaggio leggibile).
 
 ## Priorità successive (prodotto)
 
-Ordine Q2 in [ROADMAP.md](../ROADMAP.md) (**Backlog prioritizzato Q2**). **Stato (chiusura sprint `v2-next-1`, 2026-04-22):** i primi slice per waitlist strutturata (`event_registrations` + outbox), revoche consensi (RPC + worker + audit su scheda CRM), segmento `registration_waitlisted`, telefono/tag/lead su `profiles`, metriche campagna per slug in `/admin/analytics`, policy QR per evento (`check_in_*`), e2e staff (`e2e/admin-staff-routes.spec.ts`) e workflow on-demand sono **in repo** — dettaglio storie in [docs/sprint-v2-next.md](./sprint-v2-next.md).
+Ordine Q2 in [ROADMAP.md](../ROADMAP.md) (**Backlog prioritizzato Q2**). **Stato (chiusura sprint `v2-next-1`, 2026-04-22):** i primi slice per waitlist strutturata (`event_registrations` + outbox), revoche consensi (RPC + worker + audit su scheda CRM), segmento `registration_waitlisted`, telefono/tag/lead su `profiles`, metriche campagna per slug in `/admin/analytics`, policy QR per evento (`check_in_*`), e2e staff (`e2e/admin-staff-routes.spec.ts`) e workflow on-demand sono **in repo** — dettaglio in [docs/sprint-v2-next.md](./sprint-v2-next.md). Estensioni `v2-next-2` … `v2-next-13`: [sprint-v2-next-2.md](./sprint-v2-next-2.md), [sprint-v2-next-3.md](./sprint-v2-next-3.md), [sprint-v2-next-4.md](./sprint-v2-next-4.md), [sprint-v2-next-5.md](./sprint-v2-next-5.md), [sprint-v2-next-6.md](./sprint-v2-next-6.md), [sprint-v2-next-7.md](./sprint-v2-next-7.md), [sprint-v2-next-8.md](./sprint-v2-next-8.md), [sprint-v2-next-9.md](./sprint-v2-next-9.md), [sprint-v2-next-10.md](./sprint-v2-next-10.md), [sprint-v2-next-11.md](./sprint-v2-next-11.md), [sprint-v2-next-12.md](./sprint-v2-next-12.md), [sprint-v2-next-13.md](./sprint-v2-next-13.md).
 
 **Estensioni da pianificare (non bloccanti):**
 
-- **Comms:** reminder aggiuntivi (es. 7g), altri segmenti, regole waitlist/promozione più fini, vista SQL metriche se serve.
+- **Comms:** reminder **~7 giorni** (`event_reminder_7d`) — **in repo** con cron/scan esistenti ([sprint-v2-next-2.md](./sprint-v2-next-2.md)); altri segmenti, regole waitlist/promozione più fini, vista SQL metriche se serve.
 - **CRM:** altre fonti in timeline, export schedulati o filtrati come da policy, campi aggiuntivi dopo feedback staff.
-- **Analytics:** grafici e/o viste materializzate oltre tabelle e RPC; confronti più ricchi (altre metriche, stesso pattern a intervalli).
+- **Analytics:** **primo grafico in repo:** barre impilate slug × stato outbox in [`/admin/analytics`](../app/admin/analytics/page.tsx) ([sprint-v2-next-5.md](./sprint-v2-next-5.md)); restano viste materializzate, altre metriche e confronti più ricchi.
 - **QR:** policy ancora più granulari se il dominio lo richiede oltre `events.check_in_*`.
-- **Qualità:** e2e su mutazioni staff (form CRM/comms); workflow [`.github/workflows/e2e-on-demand.yml`](../.github/workflows/e2e-on-demand.yml) e [`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml) (smoke staging con secret documentati in [deploy-operator-checklist.md](./deploy-operator-checklist.md)).
+- **Qualità:** e2e su mutazioni staff (form CRM/comms) — slice: lead CRM ([sprint-v2-next-2.md](./sprint-v2-next-2.md)), scan reminder + **record campagna** ([sprint-v2-next-3.md](./sprint-v2-next-3.md), [sprint-v2-next-4.md](./sprint-v2-next-4.md)), **record campagna `registration_confirmed`** ([sprint-v2-next-7.md](./sprint-v2-next-7.md)), **enqueue campagna segmentata** ([sprint-v2-next-8.md](./sprint-v2-next-8.md)), **enqueue da record DB** ([sprint-v2-next-9.md](./sprint-v2-next-9.md), UX validazione [sprint-v2-next-10.md](./sprint-v2-next-10.md)), **messaggi errore comms** ([sprint-v2-next-11.md](./sprint-v2-next-11.md), euristiche DB [sprint-v2-next-12.md](./sprint-v2-next-12.md), e2e duplicato [sprint-v2-next-13.md](./sprint-v2-next-13.md)), [`e2e/admin-staff-routes.spec.ts`](../e2e/admin-staff-routes.spec.ts); workflow [`.github/workflows/e2e-on-demand.yml`](../.github/workflows/e2e-on-demand.yml) e [`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml) (smoke staging — [deploy-operator-checklist.md](./deploy-operator-checklist.md)).
 
 ## Criteri di chiusura epic (bozza)
 

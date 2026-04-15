@@ -52,7 +52,7 @@ Dopo aver salvato le variabili, ridistribuisci (redeploy) se necessario.
 ## 4b. Cron reminder eventi (~24h)
 
 - In repo: [`vercel.json`](../vercel.json) schedula `GET /api/cron/event-reminders` ogni 6 ore.
-- Stessi secret Bearer di §4; accoda righe `email` in `communication_outbox` con `kind` `event_reminder_24h` (idempotenza su chiave fissa).
+- Stessi secret Bearer di §4; accoda righe `email` in `communication_outbox` con `kind` `event_reminder_24h` e `event_reminder_7d` (idempotenza su chiavi distinte per finestra).
 - Test manuale staff: pagina [`/admin/comms`](../app/admin/comms/page.tsx) → “Esegui scan reminder 24h ora”.
 
 ## 4c. Cron scadenza pagamenti evento (`pending_payment`)
@@ -101,7 +101,7 @@ Equivale a `verify:supabase` poi `smoke:test`. Dopo `supabase db push` sul remot
 
 - **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): su push/PR verso `main` / `master` / `develop` — `npm ci`, `lint`, `test`, `build` (build con URL Supabase placeholder).
 - **E2E on demand** ([`.github/workflows/e2e-on-demand.yml`](../.github/workflows/e2e-on-demand.yml)): solo manuale — input `base_url` (es. preview Vercel); Playwright senza avviare il dev server.
-- **Staging DB verify (optional)** ([`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml)): solo manuale — `verify:migrations` sempre; con repository secret `STAGING_NEXT_PUBLIC_SUPABASE_URL` e `STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` anche `verify:supabase` e `smoke:test`. Dettaglio: [deploy-operator-checklist.md](./deploy-operator-checklist.md) (sezione staging).
+- **Staging DB verify (optional)** ([`.github/workflows/staging-db-verify.yml`](../.github/workflows/staging-db-verify.yml)): solo manuale — `verify:migrations` sempre; con secret `STAGING_NEXT_PUBLIC_SUPABASE_URL` e `STAGING_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` anche `verify:supabase` (senza `.env.local` nel runner, vedi [`scripts/load-supabase-env.mjs`](../scripts/load-supabase-env.mjs)); con in più `STAGING_SUPABASE_SERVICE_ROLE_KEY` anche `smoke:test`. Dettaglio: [deploy-operator-checklist.md](./deploy-operator-checklist.md) (sezione staging).
 
 In locale prima del push: `npm run ci`.
 

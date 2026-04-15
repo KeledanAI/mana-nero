@@ -11,12 +11,14 @@ const MAX_RECIPIENTS = 250;
 export type StaffCampaignSegment =
   | "newsletter_opt_in"
   | "marketing_consent"
-  | "registration_waitlisted";
+  | "registration_waitlisted"
+  | "registration_confirmed";
 
 export function parseStaffCampaignSegment(raw: string): StaffCampaignSegment {
   const s = String(raw ?? "").trim();
   if (s === "marketing_consent") return "marketing_consent";
   if (s === "registration_waitlisted") return "registration_waitlisted";
+  if (s === "registration_confirmed") return "registration_confirmed";
   return "newsletter_opt_in";
 }
 
@@ -63,11 +65,14 @@ function consentSegmentQuery(
   return q;
 }
 
-async function waitlistedProfileIdsWithEmail(supabase: SupabaseClient): Promise<{ id: string }[]> {
+async function registrationProfileIdsWithEmail(
+  supabase: SupabaseClient,
+  status: "waitlisted" | "confirmed",
+): Promise<{ id: string }[]> {
   const { data: regs, error: regErr } = await supabase
     .from("event_registrations")
     .select("user_id")
-    .eq("status", "waitlisted")
+    .eq("status", status)
     .not("user_id", "is", null)
     .limit(800);
 
@@ -97,6 +102,14 @@ async function waitlistedProfileIdsWithEmail(supabase: SupabaseClient): Promise<
   return (profiles ?? []) as { id: string }[];
 }
 
+async function waitlistedProfileIdsWithEmail(supabase: SupabaseClient): Promise<{ id: string }[]> {
+  return registrationProfileIdsWithEmail(supabase, "waitlisted");
+}
+
+async function confirmedProfileIdsWithEmail(supabase: SupabaseClient): Promise<{ id: string }[]> {
+  return registrationProfileIdsWithEmail(supabase, "confirmed");
+}
+
 /**
  * Accoda messaggi email `campaign_segment` per un segmento profilo (newsletter o marketing consent).
  * Solo enqueue outbox; il worker `processOutboxBatch` invia.
@@ -119,6 +132,8 @@ export async function enqueueStaffSegmentCampaign(
   let rows: { id: string }[];
   if (segment === "registration_waitlisted") {
     rows = await waitlistedProfileIdsWithEmail(supabase);
+  } else if (segment === "registration_confirmed") {
+    rows = await confirmedProfileIdsWithEmail(supabase);
   } else {
     const { data: profiles, error: listErr } = await consentSegmentQuery(supabase, segment);
     if (listErr) {

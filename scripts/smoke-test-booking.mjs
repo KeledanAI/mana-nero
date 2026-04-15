@@ -1,7 +1,8 @@
 /**
  * Smoke test automatico: utente → book → cancel → book → check-in (QR token anon se migrazione presente, altrimenti staff_check_in).
  *
- * Richiede in .env.local: NEXT_PUBLIC_SUPABASE_URL, chiave anon/publishable, SUPABASE_SERVICE_ROLE_KEY.
+ * Richiede NEXT_PUBLIC_SUPABASE_URL, chiave anon/publishable, SUPABASE_SERVICE_ROLE_KEY
+ * (in `.env.local` e/o variabili d'ambiente, es. job GitHub Actions).
  *
  * Opzionale: SMOKE_TEST_EMAIL + SMOKE_TEST_PASSWORD (account dedicato riusabile).
  * Se mancano, lo script crea un utente effimero (email random) e lo elimina a fine run.
@@ -10,33 +11,9 @@
  * Opzionale da terminale: SMOKE_TEST_EVENT_PAYMENTS=1 (anche senza riga in .env.local) per il ramo RPC pagamenti.
  */
 import { randomUUID } from "node:crypto";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
-function loadEnvLocal() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) {
-    throw new Error("Manca .env.local nella root del progetto.");
-  }
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    let val = trimmed.slice(eq + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    env[key] = val;
-  }
-  return env;
-}
+import { loadSupabaseEnv } from "./load-supabase-env.mjs";
 
 function hintForPostgrestRpcError(message) {
   const msg = message ?? "";
@@ -54,11 +31,7 @@ function rpcError(label, err) {
 }
 
 async function main() {
-  const env = loadEnvLocal();
-  // Consente `SMOKE_TEST_EVENT_PAYMENTS=1` da shell senza duplicare la riga in .env.local
-  if (process.env.SMOKE_TEST_EVENT_PAYMENTS) {
-    env.SMOKE_TEST_EVENT_PAYMENTS = process.env.SMOKE_TEST_EVENT_PAYMENTS;
-  }
+  const env = loadSupabaseEnv();
   const url = (env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const anonKey =
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -76,10 +49,14 @@ async function main() {
   }
 
   if (!url || !anonKey) {
-    throw new Error("Servono NEXT_PUBLIC_SUPABASE_URL e chiave anon/publishable in .env.local");
+    throw new Error(
+      "Servono NEXT_PUBLIC_SUPABASE_URL e chiave anon/publishable (.env.local o variabili d'ambiente).",
+    );
   }
   if (!serviceKey) {
-    throw new Error("Serve SUPABASE_SERVICE_ROLE_KEY in .env.local per preparare l’evento e il ruolo staff.");
+    throw new Error(
+      "Serve SUPABASE_SERVICE_ROLE_KEY per preparare l’evento e il ruolo staff (.env.local o variabili d'ambiente).",
+    );
   }
 
   const admin = createClient(url, serviceKey, {
