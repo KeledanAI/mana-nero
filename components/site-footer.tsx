@@ -8,7 +8,7 @@ const footerColumns = [
     links: [
       { href: "/events", label: "Eventi" },
       { href: "/news", label: "News" },
-      { href: "/community", label: "Giochi e Tornei" },
+      { href: "/giochi", label: "Giochi e Tornei" },
     ],
   },
   {

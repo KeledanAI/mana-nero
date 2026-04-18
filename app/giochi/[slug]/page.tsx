@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: page.display_name,
     description,
+    alternates: { canonical: `/giochi/${slug}` },
   };
 }
 

@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "News",
   description:
     "Annunci, novità in negozio e aggiornamenti per la community del Mana Nero.",
+  alternates: { canonical: "/news" },
 };
 
 export default async function NewsPage() {

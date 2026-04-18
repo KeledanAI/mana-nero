@@ -701,7 +701,7 @@ export async function saveGamePage(formData: FormData) {
   revalidatePath("/admin/game-pages");
   revalidatePath("/giochi");
   revalidatePath(`/giochi/${slug}`);
-  revalidatePath("/community");
+  revalidatePath("/giochi");
   revalidatePath("/");
   redirect("/admin/game-pages?success=game_page_saved");
 }

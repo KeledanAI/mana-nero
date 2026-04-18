@@ -19,7 +19,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description =
     post.body?.replace(/\s+/g, " ").trim().slice(0, 155) || post.title;
 
-  return { title: post.title, description };
+  return {
+    title: post.title,
+    description,
+    alternates: { canonical: `/news/${slug}` },
+  };
 }
 
 export default async function NewsDetailPage({ params }: PageProps) {
