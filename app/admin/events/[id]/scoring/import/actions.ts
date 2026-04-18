@@ -18,6 +18,14 @@ import {
 import { searchProfiles, type ProfileSearchResult } from "@/lib/domain/profile-search";
 import { logStaffCrmAction } from "@/lib/gamestore/crm-audit";
 import { requireUserWithRole } from "@/lib/gamestore/authz";
+import {
+  AdapterFetchError,
+  ADAPTER_IDS,
+  getAdapter,
+  listAdapters,
+  type AdapterDescriptor,
+  type AdapterId,
+} from "@/lib/imports/adapters";
 
 export type PreviewActionResult =
   | {
@@ -217,5 +225,50 @@ export async function searchProfilesAction(formData: FormData): Promise<SearchPr
     return { ok: true, profiles };
   } catch (e) {
     return { ok: false, reason: e instanceof Error ? e.message : "search_failed" };
+  }
+}
+
+export type AdapterListResult = { adapters: AdapterDescriptor[] };
+
+export async function listAdaptersAction(): Promise<AdapterListResult> {
+  await requireUserWithRole("staff");
+  return { adapters: listAdapters() };
+}
+
+export type FetchRemoteResult =
+  | { ok: true; csv_text: string; source: string; fetched_url: string | null }
+  | { ok: false; reason: string };
+
+/**
+ * Esegue l'adapter selezionato e ritorna il CSV pronto da incollare nella
+ * preview. La pipeline downstream (preview/commit) resta identica, così non
+ * raddoppiamo la logica di parsing/auto-link.
+ */
+export async function fetchRemoteCsvAction(formData: FormData): Promise<FetchRemoteResult> {
+  await requireUserWithRole("staff");
+  const adapterId = String(formData.get("adapter") || "") as AdapterId;
+  const reference = String(formData.get("reference") || "").trim();
+
+  if (!(ADAPTER_IDS as readonly string[]).includes(adapterId)) {
+    return { ok: false, reason: "unknown_adapter" };
+  }
+  if (!reference) {
+    return { ok: false, reason: "reference_required" };
+  }
+
+  try {
+    const adapter = getAdapter(adapterId);
+    const result = await adapter.fetch({ reference });
+    return {
+      ok: true,
+      csv_text: result.csv_text,
+      source: result.source,
+      fetched_url: result.fetched_url,
+    };
+  } catch (e) {
+    if (e instanceof AdapterFetchError) {
+      return { ok: false, reason: `${e.adapter}:${e.reason}${e.message ? ` (${e.message})` : ""}` };
+    }
+    return { ok: false, reason: e instanceof Error ? e.message : "fetch_failed" };
   }
 }
