@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/events", label: "Eventi", icon: CalendarDays },
   { href: "/news", label: "News", icon: Newspaper },
-  { href: "/community", label: "Giochi e Tornei", icon: Users },
+  { href: "/giochi", label: "Giochi e Tornei", icon: Users },
   { href: "/reserve", label: "Richieste", icon: ShoppingBag },
   { href: "/protected", label: "Account", icon: User },
 ];

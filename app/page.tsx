@@ -36,25 +36,29 @@ const categories: {
   {
     title: "BeyBlade X",
     description: "Arena Xtreme in fumetteria: burst, ranking e tornei dimostrativi — scopri il programma.",
-    href: "/community/beyblade-x",
+    href: "/giochi/beyblade-x",
     eyebrow: "Torneo",
     linkLabel: "Apri BeyBlade X",
   },
   {
     title: "Magic: The Gathering",
     description: "Draft, commander, constructed e serate tornei per i giocatori più assidui.",
+    href: "/giochi/magic-the-gathering",
   },
   {
     title: "Pokemon TCG",
     description: "Leghe locali, eventi per famiglie e tornei per la community in crescita.",
+    href: "/giochi/pokemon-tcg",
   },
   {
     title: "One Piece Card Game",
     description: "Serate competitive e tavoli dedicati alla community più attiva del momento.",
+    href: "/giochi/one-piece",
   },
   {
     title: "Board Games",
     description: "Demo, tavoli aperti e serate per chi vuole scoprire nuovi giochi in compagnia.",
+    href: "/giochi/board-games",
   },
 ];
 
@@ -270,7 +274,7 @@ export default async function Home() {
                 imageUrl={getCategoryImage(category.title)}
                 title={category.title}
                 description={category.description}
-                href={category.href ?? "/community"}
+                href={category.href ?? "/giochi"}
                 eyebrow={category.eyebrow}
                 linkLabel={category.linkLabel}
               />

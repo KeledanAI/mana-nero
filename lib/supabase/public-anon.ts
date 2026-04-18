@@ -3,7 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey } from "@/lib/supabase/env";
 
 /**
- * Client Supabase anon senza sessione (RPC pubblici come check-in da token).
+ * Client Supabase anonimo senza cookie (non usa `cookies()` da Next).
+ * Utile per route pubbliche come sitemap e check-in da token.
  */
 export function createPublicAnonClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();

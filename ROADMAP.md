@@ -1,316 +1,504 @@
 ---
-name: GameStore V1 su Supabase Starter
-overview: Bootstrap con template Vercel+Supabase; schema con ruolo singolo su profiles, RLS via has_role, booking solo tramite una RPC SECURITY DEFINER, registrations in una tabella con enum, slug su entità pubbliche, outbox idempotente, jsonb non critico; dominio in lib/domain, UI sottile.
+name: GameStore Roadmap - Local Game Store Platform
+overview: Piattaforma digitale per un local game store orientata a eventi, community e CRM. Il sito non va trattato come e-commerce generico: deve diventare il layer operativo del negozio fisico, con booking affidabile, contenuti, automazioni leggere, hub per singolo gioco e strumenti staff che aumentano ritorno in negozio e qualità della community.
 todos:
-  - id: bootstrap-starter
-    content: Spostare PRD/file se necessario; create-next-app --example with-supabase; package name lowercase; ripristinare docs; .env.local
+  - id: foundation-bootstrap
+    content: Verificare e consolidare la base già costruita (starter, schema, auth, ruoli, dominio, admin)
     status: completed
-  - id: audit-starter
-    content: Mappare middleware e lib/supabase; helper app has_role(profile.role) allineato a SQL
-    status: completed
-  - id: sql-schema-rls
-    content: "Migrazioni: app_role su profiles, has_role(), event_categories/events+slug, event_registrations+enum+partial unique, posts+slug, newsletter, admin_notes, product_requests+future cols, outbox idempotente; RLS solo con has_role"
-    status: completed
-  - id: domain-booking
-    content: "Una sola RPC SECURITY DEFINER (operazioni enum interne); app chiama solo rpc; lib/domain/booking wrapper tipizzato"
-    status: completed
-  - id: public-user-features
-    content: Pagine pubbliche e area utente; server actions sottili → dominio/RPC
-    status: completed
-  - id: admin-crm-cms
-    content: CRUD staff/admin; CSV; check-in via RPC o update consentito da RLS staff
-    status: completed
-  - id: product-reservation
-    content: Insert con status; campi opzionali quantity, desired_price, priority_flag
-    status: completed
-  - id: comms-extension
-    content: Outbox con idempotency_key UNIQUE; stati retry-safe; adapter enqueue senza dispatch obbligatorio
-    status: completed
-  - id: verify-remote-db
-    content: Applicare migrazioni al progetto Supabase remoto; npm run verify:supabase; smoke test manuale (vedi sotto)
-    status: completed
-  - id: quality-tests-v2
-    content: "Unit test in CI su ogni PR (lint, npm run test, build); smoke RPC con env; E2E Playwright on-demand o locale (npm run test:e2e), non nella job CI standard — vedi .github/workflows/e2e-on-demand.yml"
-    status: completed
-  - id: v2-event-payments
-    content: "V2 (PRD §4.1): pagamenti/depositi evento, stati registration additivi"
-    status: completed
-  - id: v2-comms-automation
-    content: "V2 (PRD §4.3): reminder, campagne, notifiche waitlist oltre outbox email base"
-    status: completed
-  - id: v2-product-preorders
-    content: "V2 (PRD §4.4): preordini strutturati, stock alerts (estende product_requests)"
-    status: completed
+  - id: foundation-docs
+    content: Allineare README e documentazione tecnica al progetto reale; introdurre CLAUDE.md o CONTRIBUTING.md con standard di coding e architettura
+    status: pending
+  - id: v1_5-comms-runtime
+    content: Rendere operative le comunicazioni con worker outbox, reminder eventi, notifiche waitlist e template transactional
+    status: pending
+  - id: v1_5-ops-dashboard
+    content: Aggiungere metriche e viste operative per staff: fill rate, partecipanti, waitlist, check-in, no-show proxy, carico prossimi eventi
+    status: pending
+  - id: v1_5-event-experience
+    content: Migliorare UX evento e booking: stati chiari, posti rimanenti, CTA migliori, dettaglio evento più completo, policy e FAQ
+    status: pending
+  - id: community-os
+    content: Trasformare le pagine gioco in hub community con calendario filtrato, copy orientato al gioco, CTA dedicate, onboarding e serate ricorrenti
+    status: pending
+  - id: crm-operativo
+    content: Evolvere il CRM in strumento di lavoro: segmenti, timeline utente, tag automatici, follow-up e insight per staff
+    status: pending
+  - id: messaging-local
+    content: Integrare canali locali e segmentazione leggera per newsletter, Telegram e WhatsApp su base consenso
+    status: pending
+  - id: demand-capture
+    content: Evolvere richieste prodotto verso wishlist e preorder light guidati dagli interessi reali della community
+    status: pending
+  - id: analytics-loop
+    content: Chiudere il loop decisionale con dashboard prodotto-community e metriche di retention
+    status: pending
 ---
 
-# Piano V1 — Game Store (estensione dello starter Vercel + Supabase)
+# Roadmap Strategica - Game Store
 
-## Decisioni architetturali chiuse (pre-implementazione)
+## Identità del progetto
 
-Queste scelte sono **vincolanti**; niente alternative parallele in V1.
+Questo progetto è una **piattaforma digitale per un negozio fisico locale** di giochi, fumetti e TCG.
+
+La direzione corretta è:
+
+> **events + community + CRM first**  
+> product reservation e monetizzazione come estensioni  
+> e-commerce pieno solo se davvero necessario più avanti
+
+Il sito deve diventare il **layer digitale del negozio fisico**:
+
+- aiuta le persone a scoprire eventi e serate
+- rende facile prenotare e tornare
+- rende visibile la community per singolo gioco
+- aiuta lo staff a seguire clienti, tavoli e interessi
+- cattura domanda reale su eventi e prodotti
+
+Il loop principale da ottimizzare è:
+
+`scopro evento -> prenoto -> ricevo reminder -> partecipo -> torno -> entro in una community -> ricevo proposte rilevanti`
+
+---
+
+## Stato Attuale Del Repo
+
+Il repository è già oltre la fase di bootstrap.
+
+### Già presente
+
+- App `Next.js + Supabase` installata e funzionante in root.
+- Schema dati V1 già impostato con:
+  - `profiles.role`
+  - `has_role(required)`
+  - `events`, `event_categories`
+  - `event_registrations`
+  - `posts`
+  - `newsletter_subscribers`
+  - `admin_notes`
+  - `product_reservation_requests`
+  - `communication_outbox`
+- Booking centralizzato con una sola RPC `SECURITY DEFINER`.
+- Area pubblica già costruita: homepage, eventi, news, contatti, hub giochi.
+- Area utente già costruita: profilo, prenotazioni, richieste prodotto, preferenze.
+- Area admin già costruita: eventi, post, categorie, CRM, newsletter, richieste prodotto, game pages.
+- Export CSV partecipanti e check-in staff presenti.
+
+### Non ancora chiuso bene
+
+- README ancora generico dello starter.
+- Nessun `CLAUDE.md` o documento esplicito con standard di coding e convenzioni architetturali.
+- Outbox presente ma non ancora completato come runtime di comunicazione production-ready.
+- Newsletter presente come raccolta dati e vista staff, non come sistema operativo di comunicazione.
+- CRM presente ma ancora “anagrafica + note”, non ancora “CRM operativo”.
+- Hub community e pagine gioco presenti ma ancora più editoriali che sistemiche.
+- Analytics e insight operativi quasi assenti.
+
+---
+
+## Gap Analysis Rispetto Alla Roadmap Originaria
+
+| Area | Stato | Note |
+|------|-------|------|
+| Bootstrap starter | **Completato** | Base progetto già installata e coerente |
+| Audit architettura starter | **Completato** | Ruoli e access control allineati tra SQL e TypeScript |
+| Schema SQL + RLS | **Completato** | Le fondamenta V1 sono già presenti |
+| Dominio booking via RPC | **Completato** | Approccio corretto e già implementato |
+| Public site + user area | **Completato / parziale** | Esiste, ma UX e loop evento vanno alzati di livello |
+| Admin CRM/CMS | **Completato / parziale** | Struttura buona, ancora troppo “tecnica” in alcune sezioni |
+| Product reservation | **Completato / parziale** | Buona base, manca evoluzione verso domanda guidata |
+| Comms extension | **Parziale** | Schema e enqueue pronti, delivery runtime incompleto |
+| Hub community | **Parziale** | Presenza iniziale, non ancora prodotto maturo |
+| Analytics / operations | **Mancante** | Serve per guidare il negozio, non solo per reporting |
+
+Conclusione: la **fondazione tecnica V1 è buona**. Il lavoro prioritario non è rifare l’architettura, ma **portarla da “funziona” a “genera valore operativo e ritorno della community”**.
+
+---
+
+## Principi Vincolanti
+
+Queste decisioni restano vincolanti.
 
 | # | Decisione | Approccio unico |
 |---|-----------|-----------------|
-| 1 | **Booking** | **Una sola** entrypoint RPC Postgres `SECURITY DEFINER` per tutto il ciclo prenotazione lato dominio (es. `event_registration_action(p_operation app_registration_action, ...)` con enum operazioni: `book`, `cancel`, `staff_check_in`, …). **Un corpo**, transazioni interne uniche per chiamata; **vietato** orchestrare booking con più RPC o query separate dall’app. L’app invoca **solo** questa `supabase.rpc(...)`. |
-| 2 | **RLS** | Funzione SQL riusabile **`public.has_role(required app_role)`** (`STABLE`, `SECURITY DEFINER`, `search_path` fisso). **Tutte** le policy RLS devono usarla (nessuna duplicazione ad hoc di controlli ruolo inline). Semantica: gerarchia **`customer < staff < admin`** — es. `has_role('staff')` vero per `staff` e `admin`. |
-| 3 | **Prenotazioni** | **Solo** tabella **`event_registrations`** con enum **`registration_status`** (`confirmed`, `waitlisted`, `cancelled`, `checked_in`, valori futuri additivi es. `pending_payment`). **Nessuna** tabella separata per waitlist. |
-| 4 | **Slug** | **`events.slug`** e **`posts.slug`**: obbligatori per entità pubbliche, **UNIQUE** globalmente (o UNIQUE per scope se definito — default: unique globale con vincolo esplicito nel piano implementativo). URL pubblici basati su slug. |
-| 5 | **jsonb** | **`metadata` / `payload` jsonb** ammessi solo per estensioni **non critiche** (es. extra outbox, preferenze UI). **Nessuna** regola di booking, capacità, ruolo o pagamento futuro deve dipendere da jsonb in V1. |
-| 6 | **Outbox** | Tabella outbox **idempotente** e **retry-safe**: ad es. **`idempotency_key TEXT NOT NULL UNIQUE`**, più stati (`pending`, `processing`, `sent`, `failed`), timestamp di tentativi; inserimenti **ON CONFLICT DO NOTHING** o upsert controllato così i retry non duplicano invii. |
-| 7 | **Product requests** | Oltre ai campi base: **`quantity` (int NULL)**, **`desired_price` (numeric NULL)**, **`priority_flag` (boolean default false)** — tutti opzionali per V1, pronti per preorder V2. |
-| 8 | **Ruoli V1** | **Un solo ruolo per utente**: colonna **`profiles.role`** di tipo **`app_role`**, `NOT NULL`, default **`customer`**. **Niente** tabella `user_roles` in V1. Se in futuro servissero più ruoli, si aggiunge in modo **additivo** (nuova tabella + migrazione dati) senza rompere la colonna esistente. |
-| 9 | **Chiusura decisioni** | Variabili d’ambiente **non** usate per admin. Nessun “forse RPC o query”. **Un** modello di slug, **un** enum registrazioni, **un** punto d’ingresso SQL per booking. |
+| 1 | Booking | Una sola entrypoint RPC Postgres per il dominio prenotazioni |
+| 2 | RLS | Tutte le policy usano `public.has_role(required)` |
+| 3 | Registrazioni | Una sola tabella `event_registrations` con enum espliciti |
+| 4 | Slug | `events.slug`, `posts.slug` e pagine pubbliche con URL stabili |
+| 5 | jsonb | Ammesso solo per estensioni non critiche |
+| 6 | Outbox | Idempotente, retry-safe, separato dal dispatch |
+| 7 | Ruoli | Un solo ruolo per utente in V1/V1.5 (`customer`, `staff`, `admin`) |
+| 8 | App layering | UI sottile, regole nel dominio, DB come contratto |
+| 9 | Evoluzione | Solo estensioni additive; niente rewrite inutili di booking/auth |
+
+Failure conditions:
+
+- spostare logica booking nel client
+- duplicare la semantica ruoli fuori da `has_role`
+- introdurre workaround che rompono V2
+- trattare il sito come mini-ecommerce generico
 
 ---
 
-## Vincoli di stabilità a lungo termine (obbligatori)
+## North Star Product
 
-Ogni decisione deve superare il test: **«Funzionerà in V2/V3 solo con estensioni additive?»** Se no, non va implementata.
+Lo stato dell’arte per questo progetto non è “più feature”, ma **più qualità nel loop locale**.
 
-| Regola | Implicazione operativa |
-|--------|-------------------------|
-| Niente implementazioni usa-e-getta | Niente logica temporanea da sostituire; niente assunzioni che rompono a scala |
-| Dominio estensibile | **Ruolo enum su `profiles`** (no boolean `is_staff`); **stati espliciti**; niente seconda tabella per waitlist |
-| Preparare il futuro senza costruirlo | Colonne **nullable** per pagamenti su event/registration; campi prodotto opzionali; outbox per canali multipli |
-| Disaccoppiamento | Regole in **`lib/domain/*`**; componenti **senza** capacità/booking inline |
-| Booking production-ready | **Una RPC** per transazione; vincoli DB + partial unique su coppie attive; waitlist = stesso record, altro `status` |
-| Autorizzazione scalabile | **`has_role`** in RLS e stessa semantica in TypeScript per UX (hide admin nav) — **no** `ADMIN_EMAILS` |
-| DB = contratto | Slug, enum, timestamp; evoluzione additiva |
-| Punti di estensione | Outbox idempotente; colonne pagamento NULL; jsonb solo non critico |
+### Esperienza target per il pubblico
 
-**Failure condition:** riscrivere auth, booking oltre l’aggiunta di RPC additive, split tabella registrations, o ruoli senza migrazione controllata → **INVALID**.
+- Capisco subito che tipo di posto è il negozio.
+- Vedo quali community esistono davvero.
+- Trovo il mio gioco e le prossime serate in pochi secondi.
+- Prenoto senza attrito.
+- Ricevo promemoria affidabili.
+- Capisco cosa aspettarmi da evento e community.
+- Torno perché il sito continua a sembrarmi vivo e rilevante.
 
----
+### Esperienza target per lo staff
 
-## Contesto
-
-- [PRD.md](./PRD.md): V1 in scope; V2/V3 direzione only.
-- Bootstrap in **root**; se la cartella non è vuota, spostare temporaneamente file di documentazione.
-- **Nome package npm:** usare nome **lowercase** (es. `game-store`) — la cartella può restare `GameStore`, ma `package.json` **name** non può avere maiuscole (vincolo npm).
-
-## Step 0 — Bootstrap ufficiale
-
-1. Svuotare la directory di lavoro dai soli file che bloccano lo scaffold (es. `PRD.md`, `file.md` → backup temporaneo).
-2. `npx create-next-app@latest . --example with-supabase` con flag non interattivi; **`package.json` → `"name": "game-store"`** (o simile) se il template deriva dal nome cartella maiuscolo.
-3. Ripristinare `PRD.md` e `file.md`.
-4. `.env.local`: supportare sia `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` sia documento utente con `NEXT_PUBLIC_SUPABASE_ANON_KEY` (stesso valore se anon legacy).
-
-## Step 1 — Ispezione architettura
-
-Mappare il refresh sessione (nel repo: `proxy.ts` + `lib/supabase/proxy.ts`, equivalente funzionale al middleware dello starter) e `lib/supabase/*`. Helper lato app: **`userMeetsRole`** in `lib/auth/roles.ts` allineato a `has_role` in SQL.
-
-## Step 2 — Modello dati
-
-### Ruoli e profili
-
-- Enum **`app_role`**: `customer`, `staff`, `admin`.
-- **`profiles.role`** `NOT NULL DEFAULT 'customer'` (allineare allo starter: stesso `id` = `auth.users.id`).
-
-### Eventi
-
-- `event_categories`; **`events`** con `status`, `starts_at`/`ends_at`, `capacity`, **`slug` UNIQUE**, colonne nullable `price_cents`, `currency`, `deposit_cents` per V2.
-
-### `event_registrations` (tabella unica)
-
-- `registration_status` enum come sopra; **`waitlist_position` NULL** per ordine waitlist.
-- **Partial unique index**: una riga attiva per utente/evento, es. unica su `(event_id, user_id)` dove `status IN ('confirmed','waitlisted')`.
-
-### Booking — implementazione
-
-- **Una sola funzione** `SECURITY DEFINER` con `SET search_path = public` (o schema esplicito): parametro operazione (enum) che instrada a branch interni nella **stessa** definizione PL/pgSQL. Per `book`: lock riga evento (`FOR UPDATE`), conta `confirmed`, insert `confirmed` vs `waitlisted` o errore, `waitlist_position`, eventuale riga **outbox** con `idempotency_key` deterministico (es. `booking:{event_id}:{user_id}`) nella **stessa** transazione. Per `cancel` / `staff_check_in`: stessa funzione, branch atomico. **Vietato** più funzioni RPC per booking o logica capacity dal client.
-
-### CMS, newsletter, CRM, prodotti
-
-- **`posts`**: `status`, **`slug` UNIQUE**, `published_at`, autore.
-- `newsletter_subscribers`, `admin_notes` (RLS con `has_role('staff')`).
-- **`product_reservation_requests`**: status enum; campi **`quantity`**, **`desired_price`**, **`priority_flag`**; note testuali; **nessuna** dipendenza da jsonb per stati core.
-
-### Outbox
-
-- Colonne minime: `id`, `idempotency_key` UNIQUE, `channel`, `payload` jsonb (solo contenuto messaggio, non regole business), `status`, `scheduled_at`, `attempt_count`, `last_error`, timestamps.
-- Worker V1 opzionale; contratto pronto per retry idempotenti.
-
-### RLS
-
-- Ogni policy: **`has_role('staff')`** / **`has_role('admin')`** / `auth.uid() = ...` per dati propri.
-- **Nessuna** policy che duplica la logica di `has_role` in linea.
-
-## Step 3 — Applicativo
-
-Server Actions → `lib/domain/booking.ts` (etc.) → **`.rpc()`** verso le funzioni sopra. UI senza logica di capacità.
-
-## Step 4 — Comunicazioni
-
-`lib/comms/enqueue.ts` inserisce in outbox con **idempotency_key** fornito dal dominio (es. dopo RPC booking).
-
-## Diagramma alto livello
-
-```mermaid
-flowchart LR
-  subgraph public [Public]
-    HP[Homepage]
-    EV[Events by slug]
-    NW[News by slug]
-    PR[ProductRequest]
-  end
-  subgraph auth [Starter Auth]
-    SUP[Supabase Auth]
-    PRX[Proxy session cookies]
-  end
-  subgraph user [Logged in]
-    PROF[Profile role]
-    BOOK[rpc_book_event]
-  end
-  subgraph sql [Postgres]
-    HR[has_role]
-    RPC[SECURITY_DEFINER_RPC]
-    OBX[outbox idempotent]
-  end
-  subgraph admin [staffOrAdmin]
-    ADM[Admin CRUD]
-    CSV[CSV]
-    CRM[CRM]
-  end
-  public --> SUP
-  user --> RPC
-  RPC --> OBX
-  admin --> HR
-  PRX --> SUP
-```
-
-## Rischio noto
-
-- Directory non vuota e **npm name**: usare nome package lowercase dopo lo scaffold.
+- So quali eventi stanno riempiendosi.
+- So chi è in waitlist e chi va ricontattato.
+- So quali utenti tornano spesso e quali stanno sparendo.
+- So quali giochi e prodotti stanno generando domanda reale.
+- Posso pubblicare contenuti e aggiornare pagine senza attrito tecnico.
 
 ---
 
-## Stato implementazione (codice vs piano V1)
+## Piano Master
 
-**Migrazioni nel repository:** **18** file SQL in [`supabase/migrations/`](supabase/migrations/) (V1 base, CMS, pagamenti, check-in, comms/CRM/analytics Q2, ecc.).
+## Fase 0 - Consolidamento Fondazioni
 
-| Area | Stato |
-|------|--------|
-| Migrazioni SQL V1 (`supabase/migrations/20260404170000_gamestore_v1.sql` e successive) | Implementate nel repo |
-| RPC unica `event_registration_action`, RLS via `has_role`, outbox idempotente | Implementate |
-| Dominio `lib/domain/booking.ts`, `lib/comms/enqueue.ts`, worker batch `lib/comms/process-outbox.ts` | Implementate |
-| Route cron worker | `GET /api/cron/outbox` con `Authorization: Bearer` + `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) |
-| Cron scadenza pagamenti evento | `GET /api/cron/expire-pending-event-payments` (stessi secret; opz. `EVENT_PAYMENT_PENDING_EXPIRE_HOURS`) — vedi [`vercel.json`](vercel.json) |
-| Cron alert stock preordini | `GET /api/cron/product-stock-notifications` — accoda `product_stock_available` e opz. digest staff `product_stock_staff_summary` ([`lib/comms/product-stock-notifications.ts`](lib/comms/product-stock-notifications.ts), [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts)); `PRODUCT_STOCK_SCAN_BATCH_LIMIT`, `PRODUCT_STOCK_EXPECTED_LOOKAHEAD_DAYS` (finestra opzionale su `expected_fulfillment_at`), `PRODUCT_STOCK_AUTO_CANCEL_GRACE_DAYS` (opz. annullamento automatico `awaiting_stock` con data attesa troppo vecchia), `PRODUCT_STOCK_STAFF_SUMMARY_EMAIL`; stessi Bearer secret |
-| UI pubblica, `/protected`, `/admin`, CSV partecipanti | Implementate |
-| Pagamenti evento (Stripe + RPC) | Migrazione [`20260414120000_event_registration_payment_flow.sql`](supabase/migrations/20260414120000_event_registration_payment_flow.sql): `confirm_payment` / `expire_payment`, `book` → `pending_payment` se prezzo/deposito; webhook [`app/api/webhooks/stripe/route.ts`](app/api/webhooks/stripe/route.ts); checkout da [`app/events/actions.ts`](app/events/actions.ts) |
-| Enum `pending_payment` / estensioni additive | `pending_payment` su enum registrazione; operazioni RPC e UI allineate (`v2-event-payments` **completed** nel frontmatter) |
-| Comms automation (reminder 24h + 7g) | [`lib/comms/event-reminders.ts`](lib/comms/event-reminders.ts) (`event_reminder_24h`, `event_reminder_7d`, `enqueueEventReminderScansCombined`), cron [`app/api/cron/event-reminders/route.ts`](app/api/cron/event-reminders/route.ts), UI [`/admin/comms`](app/admin/comms/page.tsx), worker [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts), design [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md); sprint incremento [docs/sprint-v2-next-2.md](docs/sprint-v2-next-2.md) |
-| Campagne segmentate (primo slice) | Enqueue [`lib/comms/campaign-segment-enqueue.ts`](lib/comms/campaign-segment-enqueue.ts) da [`/admin/comms`](app/admin/comms/page.tsx) (segmenti `newsletter_opt_in`, `marketing_consent`, `registration_waitlisted`, **`registration_confirmed`**); server action [`runNewsletterCampaignEnqueue`](app/admin/actions.ts) con validazione slug/oggetto se **senza** record picker; con record, slug/segmento/copy dal DB ([docs/sprint-v2-next-10.md](docs/sprint-v2-next-10.md)); email `campaign_segment` in [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts); tabella `comms_campaigns` in [`20260418140000_crm_audit_qr_window_comms_campaigns.sql`](supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql); estensione segmenti / annullamenti in [`20260422130000_q2_crm_comms_outbox_consolidated.sql`](supabase/migrations/20260422130000_q2_crm_comms_outbox_consolidated.sql); CHECK segmento confermati in [`20260423103000_comms_campaign_segment_registration_confirmed.sql`](supabase/migrations/20260423103000_comms_campaign_segment_registration_confirmed.sql) |
-| QR check-in (primo slice) | [`20260417120000_event_registration_check_in_token.sql`](supabase/migrations/20260417120000_event_registration_check_in_token.sql) + [`20260418140000_crm_audit_qr_window_comms_campaigns.sql`](supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql): token, `event_check_in_by_token` (finestra + slug), `staff_rotate_registration_check_in_token`; pagina [`app/events/check-in/[token]/page.tsx`](app/events/check-in/[token]/page.tsx); staff [`app/admin/events/[id]/page.tsx`](app/admin/events/[id]/page.tsx) |
-| Metriche outbox email (debug staff) | RPC `outbox_email_stats_for_staff` ([`supabase/migrations/20260416180000_outbox_email_stats_for_staff.sql`](supabase/migrations/20260416180000_outbox_email_stats_for_staff.sql)); aggregati `kind` × `status` in [`/admin/comms`](app/admin/comms/page.tsx) con etichette italiane sui tipi messaggio ([`lib/gamestore/crm-timeline.ts`](lib/gamestore/crm-timeline.ts)); storico per slug campagna con colonne tipo/oggetto/dettaglio outbox |
-| CRM staff (timeline + export) | Scheda cliente [`/admin/crm/…`](app/admin/crm/%5BprofileId%5D/page.tsx): timeline unificata (note, iscrizioni, richieste, outbox per `user_id`, audit) via [`lib/gamestore/data.ts`](lib/gamestore/data.ts); testi timeline/audit leggibili con [`lib/gamestore/crm-timeline.ts`](lib/gamestore/crm-timeline.ts). Elenco profili: export **`GET /admin/crm/profiles.csv`** ([`app/admin/crm/profiles.csv/route.ts`](app/admin/crm/profiles.csv/route.ts)), link «Esporta CSV» su [`/admin/crm`](app/admin/crm/page.tsx) |
-| Analytics staff (primo slice) | [`/admin/analytics`](app/admin/analytics/page.tsx): RPC `analytics_staff_summary` con intervallo; breakdown iscrizioni; RPC campagne e per slug; funnel waitlist; **confronto finestra precedente** (stessa durata giorni) per iscrizioni totali/confermate e richieste prodotto via [`countEventRegistrationsCreatedInRangeStaff` / `countProductRequestsCreatedInRangeStaff`](lib/gamestore/data.ts) |
-| Check-in per evento, analytics campagne/waitlist, stock per profilo | Migrazione [`20260420140000_checkin_policy_analytics_campaign_waitlist_profile_stock.sql`](supabase/migrations/20260420140000_checkin_policy_analytics_campaign_waitlist_profile_stock.sql): `events.check_in_early_days` / `check_in_late_hours`, `profiles.stock_notification_lookahead_days`, `event_check_in_by_token` con titolo/data evento; RPC `analytics_outbox_campaign_segment_stats`, `analytics_waitlist_registration_summary`; UI admin eventi/CRM/analytics e cron stock allineati; breakdown per slug campagna: [`20260421120000_analytics_campaign_outbox_by_slug.sql`](supabase/migrations/20260421120000_analytics_campaign_outbox_by_slug.sql) (`analytics_outbox_campaign_segment_stats_by_slug`) in [`/admin/analytics`](app/admin/analytics/page.tsx) |
-| Preordini / stock (incremento) | Migrazione [`20260415120000_product_requests_preorder_fields.sql`](supabase/migrations/20260415120000_product_requests_preorder_fields.sql): `expected_fulfillment_at`, `stock_notified_at`, stato `awaiting_stock` |
-| Outbox annullamento dopo revoca marketing | Migrazione [`20260421103000_outbox_cancelled_marketing_revoke.sql`](supabase/migrations/20260421103000_outbox_cancelled_marketing_revoke.sql): valore enum `outbox_status.cancelled`; RPC `staff_cancel_pending_marketing_campaign_outbox` invocata da revoca marketing CRM ([`app/admin/actions.ts`](app/admin/actions.ts)) |
-| CRM contatto + revoche newsletter / worker | Migrazione [`20260422130000_q2_crm_comms_outbox_consolidated.sql`](supabase/migrations/20260422130000_q2_crm_comms_outbox_consolidated.sql): `profiles.phone`, `crm_tags`, `lead_stage`; RPC `staff_cancel_pending_campaign_segment_outbox`, `staff_cancel_pending_newsletter_campaign_outbox`; skip consenso in [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts); UI [`app/admin/crm`](app/admin/crm/) |
-| Test automatici | `npm run test` (unit: booking, comms, cron-auth, **comms-admin-errors** (codici + euristiche Postgres), **crm-timeline**, **analytics-campaign-slug-chart**, outbox-skip, payment checkout, **event-reminders** finestre 24h/7g, ecc.); `npm run verify:migrations`; `npm run smoke:test` (merge `.env.local` + env — [`scripts/load-supabase-env.mjs`](scripts/load-supabase-env.mjs)); `npm run verify:after-migrations` / `npm run verify:predeploy`; `npm run test:e2e` (Playwright; staff con `E2E_STAFF_STORAGE_STATE`, CSV profili, CRM lead, comms incluso **record `registration_confirmed`**, **enqueue manuale** (slug univoco), **enqueue da picker record** `comms_campaigns`, **errore enqueue leggibile**, **slug duplicato record** (messaggio umano), **analytics grafico slug** se DB con dati). CI [`.github/workflows/ci.yml`](.github/workflows/ci.yml); E2E on-demand [`.github/workflows/e2e-on-demand.yml`](.github/workflows/e2e-on-demand.yml); verifica opzionale DB staging [`.github/workflows/staging-db-verify.yml`](.github/workflows/staging-db-verify.yml) |
+Obiettivo: mettere ordine nel progetto esistente e formalizzare le convenzioni.
 
-**Gap operativo (ricorrente):** ogni modifica in [`supabase/migrations/`](supabase/migrations/) va applicata al progetto Supabase remoto usato in prod/staging (CLI `supabase db push` o SQL editor). Dopo il push: **`npm run verify:after-migrations`** (stesso stack di `verify:supabase` + `smoke:test`). Il solo merge nel repo non aggiorna Postgres remoto. **Ambienti multipli:** dev, staging e produzione sono in genere **progetti Supabase distinti** — va ripetuto `db push` + verify (o smoke con `.env` che punta a ciascun URL) **per ogni** istanza, non solo su “il” remoto collegato in locale.
+### Deliverable
+
+- README allineato al progetto reale.
+- `CLAUDE.md` o `CONTRIBUTING.md` con:
+  - architettura applicativa
+  - convenzioni Supabase/RLS
+  - pattern Server Actions -> domain -> Supabase
+  - naming
+  - gestione immagini CMS
+  - policy su ruoli, slug, enums e outbox
+- Audit finale delle migration e dei flussi esistenti.
+- Definizione chiara di ambienti, seed e checklist release.
+
+### Outcome
+
+Ridurre ambiguità e impedire che il progetto deragli in implementazioni incoerenti.
 
 ---
 
-## Deploy database e smoke test
+## Fase 1 - V1.5 Operational Excellence
 
-1. **Variabili:** copia [.env.example](.env.example) in `.env.local` e imposta almeno `NEXT_PUBLIC_SUPABASE_URL`, chiave anon/publishable, `NEXT_PUBLIC_SITE_URL` per redirect coerenti.
-2. **Migrazioni:** applica in ordine i file in `supabase/migrations/` al progetto collegato (documentazione Supabase: *Database migrations*). Dalla root: `npm run verify:migrations` per elencare i file locali da applicare; dopo `supabase db push`: `npm run verify:after-migrations`.
-3. **Controllo rapido:** dalla root esegui `npm run verify:supabase` — verifica raggiungibilità REST e presenza tabella `events`.
-4. **Smoke test (automatico o manuale):**
-   - **Automatico:** con `SUPABASE_SERVICE_ROLE_KEY` + URL/anon in `.env.local`, esegui `npm run smoke:test`. Senza `SMOKE_TEST_EMAIL` / `SMOKE_TEST_PASSWORD` viene creato ed eliminato un utente effimero; altrimenti si riusa l’account indicato. Con `SMOKE_TEST_EVENT_PAYMENTS=1` viene anche testato `pending_payment` → `confirm_payment` (nessuna carta reale).
-   - **Manuale (UI):** registrazione / login (Turnstile se attivo); evento `published`; da `/events` prova `book` e `cancel`; con evento a pagamento (`price_cents` / `deposit_cents` in admin) verifica checkout Stripe e conferma via webhook; promuovi un utente a `staff` (SQL o CRM); in `/admin/events/...` check-in staff, link/QR self check-in (`/events/check-in/...` dopo migrazione token) e download CSV partecipanti.
-5. **Email da outbox:** configurare `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` in produzione; per il worker impostare `OUTBOX_CRON_SECRET` e/o `CRON_SECRET` (Vercel) — le route `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` accettano `Authorization: Bearer` con uno dei due. In deploy su Vercel è incluso [`vercel.json`](vercel.json) con cron (outbox ogni 15 min; scadenza pagamenti pending ogni ora; reminder eventi ogni 6 ore — job `event-reminders` che accoda `event_reminder_24h` e `event_reminder_7d`; alert stock preordini giornaliero). Senza cron outbox, le righe `email` restano in `pending` finché il worker non gira.
-6. **Stripe (eventi a pagamento):** in Vercel imposta `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; in Stripe Dashboard aggiungi endpoint `https://<dominio-produzione>/api/webhooks/stripe` con evento `checkout.session.completed`. Vedi [.env.example](.env.example) e [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md).
+Obiettivo: chiudere bene il prodotto già presente e renderlo davvero production-ready per un negozio locale.
 
-### Checklist deploy produzione (Vercel / Supabase)
+### 1. Comunicazioni operative
 
-Usala dopo il primo deploy o ad ogni cambio di dominio / chiavi.
+- Worker outbox reale con retry e update stato.
+- Template email transactional:
+  - booking confermato
+  - ingresso in waitlist
+  - promozione da waitlist
+  - reminder pre-evento
+  - evento annullato o cambiato
+- Scheduling messaggi con `scheduled_at`.
+- Log errori e dead-letter strategy minima.
 
-- [ ] **Vercel → Environment variables:** stessi nomi di [.env.example](.env.example) necessari al runtime (`NEXT_PUBLIC_*`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_*`, `OUTBOX_CRON_SECRET` o `CRON_SECRET`, `STRIPE_*` se usi pagamenti evento, ecc.).
-- [ ] **Supabase → Authentication → URL configuration:** Site URL e redirect consentiti puntano al dominio **produzione** (non `localhost`), in linea con `NEXT_PUBLIC_SITE_URL`.
-- [ ] **Cron worker:** in Vercel imposta `CRON_SECRET` (consigliato) oppure `OUTBOX_CRON_SECRET`; verifica in log che `GET /api/cron/outbox`, `GET /api/cron/expire-pending-event-payments`, `GET /api/cron/event-reminders` e `GET /api/cron/product-stock-notifications` rispondano `200` e che in tabella `communication_outbox` gli `email` passino a `sent` (con `RESEND_API_KEY` valida).
-- [ ] **Migrazioni:** l’istanza Postgres collegata al progetto Supabase in produzione ha tutte le migrazioni applicate (`supabase db push` o pipeline equivalente).
-- [ ] **Post-deploy manuale:** apri sito pubblico, `/events`, login magic link reale; da staff `/admin` e un evento; oppure `npm run verify:supabase` / `npm run smoke:test` contro l’URL Supabase di produzione solo se usi variabili che puntano a quel progetto.
-- [ ] **CI:** su ogni PR il workflow **CI** (lint, unit test, build). Opzionale: **E2E on demand** e **Staging DB verify** da Actions (`workflow_dispatch`) — vedi [.github/workflows/](.github/workflows/). In locale: `npm run ci` prima del push.
+### 2. Event experience
 
-**Esecuzione guidata:** runbook passo-passo in [docs/deploy-production-runbook.md](docs/deploy-production-runbook.md); checklist spuntabile [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md). Con env verso l’istanza da validare: `npm run verify:release-stack` (REST + smoke RPC); dopo migrazioni sul remoto: `npm run verify:after-migrations`; passaggio unico release + gate strict opzionale: `npm run verify:predeploy`; per controllo strict solo env: `npm run verify:deploy`; comandi cron: `npm run verify:cron-hints`.
+- Pagine evento più ricche:
+  - posti rimanenti o stato capienza
+  - FAQ
+  - cosa portare
+  - livello target
+  - durata prevista
+  - regole speciali
+  - CTA più forti
+- Stati booking comprensibili e non tecnici.
+- UX migliore per waitlist e cancellazione.
+- Canonical flow per eventi passati/cancellati/futuri.
+
+### 3. Staff operations
+
+- Dashboard staff con:
+  - prossimi eventi
+  - fill rate
+  - waitlist aperte
+  - checked-in
+  - eventi da completare
+- Vista rapida “eventi a rischio”:
+  - pochi iscritti
+  - troppe persone in waitlist
+  - metadata incompleti
+
+### 4. Qualità e affidabilità
+
+- Handling errori coerente lato actions/domain.
+- Test mirati sui flussi booking e waitlist.
+- Verifica idempotenza outbox.
+- Protezione migliore su upload CMS e dati form.
+
+### Outcome
+
+Passare da “buona base V1” a “sistema affidabile per gestione eventi reali”.
 
 ---
 
-## Backlog V2 (da [PRD.md](PRD.md) sezione 4)
+## Fase 2 - Community OS
 
-Sprint operativo chiuso: [docs/sprint-v2-next.md](docs/sprint-v2-next.md) (`v2-next-1`). **Indice sprint `v2-next-2` … `v2-next-13`:** [docs/backlog-crm-v2.md](docs/backlog-crm-v2.md) (sezione sprint dedicata). Primi incrementi: [docs/sprint-v2-next-2.md](docs/sprint-v2-next-2.md) (`v2-next-2`: reminder 7g + e2e CRM), [docs/sprint-v2-next-3.md](docs/sprint-v2-next-3.md) (`v2-next-3`: smoke staging senza `.env.local` nel runner + e2e scan comms), [docs/sprint-v2-next-4.md](docs/sprint-v2-next-4.md) (`v2-next-4`: e2e record `comms_campaigns`), [docs/sprint-v2-next-5.md](docs/sprint-v2-next-5.md) (`v2-next-5`: grafico barre slug campagne in `/admin/analytics`); seguono comms `registration_confirmed`, e2e enqueue, UX form/validazione, messaggi errore ed euristiche Postgres — [docs/sprint-v2-next-6.md](docs/sprint-v2-next-6.md) … [docs/sprint-v2-next-13.md](docs/sprint-v2-next-13.md).
+Obiettivo: trasformare il sito da vetrina + admin a **motore della community locale**.
 
-Priorità suggerita: monetizzazione eventi e automazione comunicazioni prima del catalogo commerce (V3).
+### 1. Hub per singolo gioco
 
-### Backlog prioritizzato Q2 (esecuzione)
+Ogni gioco importante deve avere una pagina che unisca:
 
-Ordine consigliato per il prossimo ciclo di prodotto; dettaglio storie, DoD e log in [docs/sprint-v2-next.md](docs/sprint-v2-next.md) (S1–S7).
+- identità della community
+- prossimi eventi filtrati
+- tono e cultura di quel gioco
+- call to action dedicate
+- guida rapida per chi è nuovo
 
-**Stato sprint `v2-next-1` (2026-04-22):** i punti **1–5** hanno **primi slice in repo** (waitlist su `event_registrations` + outbox; revoche newsletter/marketing con RPC, worker e audit; analytics **sent/failed** per slug; CRM con telefono/tag/lead; e2e staff + workflow on-demand). Restano estensioni di prodotto e la valutazione **DB read-only staging in CI** (punto 5). Per ambienti Supabase distinti la fonte di verità operativa resta [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md) (`supabase link` per ref + stessa routine verifiche).
+### 2. Format pages vere, non solo contenuto statico
 
-1. **Waitlist strutturata** (comms / dominio): modello dati + outbox idempotente + UI staff o export, oltre i conteggi RPC già presenti.
-2. **Revoche consensi → outbox**: gestione righe `communication_outbox` in `pending` dopo revoca newsletter/marketing; coerenza con audit CRM.
-3. **Analytics per campagna (slug)**: metriche **sent/failed** (e intervallo) per campagna, oltre agli aggregati globali `campaign_segment` in [`/admin/analytics`](app/admin/analytics/page.tsx).
-4. **CRM operativo**: telefono in schema, tag/lead (minimo), export e RLS documentati dove servono.
-5. **Qualità**: e2e con **sessione staff** (variabili in [.env.example](.env.example)); [`.github/workflows/e2e-on-demand.yml`](.github/workflows/e2e-on-demand.yml) su URL deploy; smoke opzionale su Supabase staging da [`.github/workflows/staging-db-verify.yml`](.github/workflows/staging-db-verify.yml) (secret `STAGING_NEXT_PUBLIC_SUPABASE_*` e opz. `STAGING_SUPABASE_SERVICE_ROLE_KEY` per `smoke:test` — vedi [docs/deploy-operator-checklist.md](docs/deploy-operator-checklist.md), [docs/sprint-v2-next-3.md](docs/sprint-v2-next-3.md)). Estensione: ulteriori e2e staff, eventuale DB read-only dedicato in CI oltre questo workflow.
+Per esempio:
 
-| PRD | Tema | Todo YAML |
-|-----|------|-------------|
-| §4.1 | Pagamenti online, depositi, QR check-in, reminder | `v2-event-payments` |
-| §4.3 | Campagne, reminder, notifiche waitlist strutturate | `v2-comms-automation` |
-| §4.4 | Preordini, quantità, priorità, alert arrivo merce | `v2-product-preorders` |
-| §4.2 / §4.5 | CRM avanzato, analytics dashboard | epic [docs/backlog-crm-v2.md](docs/backlog-crm-v2.md); audit `staff_crm_audit_log` (migrazione `20260418140000_*`) |
+- Magic: commander, prerelease, draft, standard
+- Pokemon: league, beginner, family-friendly
+- One Piece: competitive nights, learn-to-play
+- Board games: serate prova, tavoli aperti, gioco guidato
 
-I todo `v2-comms-automation` e `v2-product-preorders` sono **completed** per l’incremento base in repo (reminder 24h + campi preordine). **Già in repo come primi slice:** alert stock automatici (cron `product-stock-notifications` + outbox `product_stock_available`); metriche outbox (`outbox_email_stats_for_staff` + tabella in `/admin/comms`); **campagne (primo slice):** enqueue `campaign_segment` da `/admin/comms` per segmenti **newsletter opt-in**, **marketing consent**, **`registration_waitlisted`** e **`registration_confirmed`** ([`lib/comms/campaign-segment-enqueue.ts`](lib/comms/campaign-segment-enqueue.ts)), chiave idempotency `campaign:{segment}:{campaign_id}:{user_id}`; **record campagna:** form/lista `comms_campaigns` in [`/admin/comms`](app/admin/comms/page.tsx) con binding enqueue opzionale e storico outbox per slug; **analytics** con RPC aggregate, intervalli e **statistiche per slug** (`analytics_outbox_campaign_segment_stats_by_slug`). **Revoche consensi:** RPC dedicate + annullamenti da scheda CRM e coerenza audit ([`lib/gamestore/crm-audit.ts`](lib/gamestore/crm-audit.ts), [`app/admin/actions.ts`](app/admin/actions.ts)). Restano estensioni non bloccanti: timeline/audit ancora più ricchi, ulteriori segmenti, policy QR ancora più granulari, viste/materializzate, grafici avanzati, ulteriori e2e staff oltre CSV, CRM, scan comms, record campagne e **enqueue segmentato** ([docs/sprint-v2-next-2.md](docs/sprint-v2-next-2.md) … [docs/sprint-v2-next-4.md](docs/sprint-v2-next-4.md), [docs/sprint-v2-next-7.md](docs/sprint-v2-next-7.md), [docs/sprint-v2-next-8.md](docs/sprint-v2-next-8.md), [docs/sprint-v2-next-9.md](docs/sprint-v2-next-9.md), [docs/sprint-v2-next-10.md](docs/sprint-v2-next-10.md), [docs/sprint-v2-next-11.md](docs/sprint-v2-next-11.md), [docs/sprint-v2-next-12.md](docs/sprint-v2-next-12.md), [docs/sprint-v2-next-13.md](docs/sprint-v2-next-13.md)) (vedi [docs/backlog-crm-v2.md](docs/backlog-crm-v2.md)). **Staging in CI:** workflow opzionale `staging-db-verify` + secret documentati in checklist (non sostituiscono `db push` per ambiente).
+### 3. Serate ricorrenti
 
-### Prossimo incremento backlog (ordine consigliato)
+Introdurre una struttura editoriale e operativa per:
 
-I quattro punti numerati sotto descrivono **aree già coperte da primi slice in repo** (allineati allo sprint `v2-next-1`); servono come **ancora** per il prossimo lavoro: regole più fini, segmenti aggiuntivi, UX analytics/CRM, automazione test. Non implicano che manchi l’MVP elencato in tabella Q2 sopra.
+- weekly commander night
+- monthly prerelease
+- beginner night
+- family board game night
+- league / season
 
-1. **Alert stock automatici** verso outbox (PRD §4.4): **primo slice in repo** — cron [`GET /api/cron/product-stock-notifications`](app/api/cron/product-stock-notifications/route.ts) (pianificazione in [`vercel.json`](vercel.json)), logica [`lib/comms/product-stock-notifications.ts`](lib/comms/product-stock-notifications.ts), email `product_stock_available` nel worker [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts); **digest staff opzionale** (`product_stock_staff_summary` in outbox se `PRODUCT_STOCK_STAFF_SUMMARY_EMAIL` è impostata). **Incremento:** colonna opzionale `profiles.stock_notification_lookahead_days` (override finestra per cliente oltre env); annullamento automatico con `PRODUCT_STOCK_AUTO_CANCEL_GRACE_DAYS`. Restano eventuali regole ancora più granulari per segmento cliente.
-2. **Campagne segmentate** su outbox (PRD §4.3): **primo slice** — form staff in [`/admin/comms`](app/admin/comms/page.tsx) + [`lib/comms/campaign-segment-enqueue.ts`](lib/comms/campaign-segment-enqueue.ts) + dispatch `campaign_segment` in [`lib/comms/process-outbox.ts`](lib/comms/process-outbox.ts); segmenti **newsletter opt-in**, **marketing consent**, **`registration_waitlisted`**, **`registration_confirmed`**; tabella `comms_campaigns` con CRUD in `/admin/comms`; binding enqueue ↔ record e storico outbox per slug (UI con etichette leggibili). **Reminder aggiuntivo ~7 giorni:** `event_reminder_7d` nello stesso cron/scan staff ([docs/sprint-v2-next-2.md](docs/sprint-v2-next-2.md)). Prossimi passi: altri segmenti / reminder (vedi [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md)).
-3. **QR check-in** (PRD §4.1): **primo slice in repo** — colonna `check_in_token` + RPC `event_check_in_by_token` ([`supabase/migrations/20260417120000_event_registration_check_in_token.sql`](supabase/migrations/20260417120000_event_registration_check_in_token.sql)); finestra RPC e slug in risposta + RPC `staff_rotate_registration_check_in_token` in [`supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql`](supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql); pagina pubblica `app/events/check-in/[token]/page.tsx`, QR e rotazione in [`app/admin/events/[id]/page.tsx`](app/admin/events/[id]/page.tsx) accanto a `staff_check_in`. **Incremento:** colonne opzionali `events.check_in_early_days` / `check_in_late_hours` e form in [`/admin/events`](app/admin/events/page.tsx); risposta RPC con titolo/data evento e link Google Calendar in pagina check-in ([`20260420140000_*`](supabase/migrations/20260420140000_checkin_policy_analytics_campaign_waitlist_profile_stock.sql)). Restano policy ancora più granulari se richiesto.
-4. **CRM §4.2 / analytics §4.5:** epic in [docs/backlog-crm-v2.md](docs/backlog-crm-v2.md); **Fase 1 (primo slice DB):** tabella `staff_crm_audit_log` + RLS nella migrazione [`20260418140000_crm_audit_qr_window_comms_campaigns.sql`](supabase/migrations/20260418140000_crm_audit_qr_window_comms_campaigns.sql); **Fase 2 (primo slice UI):** timeline unificata in [`/admin/crm/…`](app/admin/crm/%5BprofileId%5D/page.tsx), ricerca e filtri su [`/admin/crm`](app/admin/crm/page.tsx), audit su più azioni staff (incl. check-in manuale, revoche consensi e salvataggio profilo con annullamento outbox); **Fase 3 (primo slice):** [`/admin/analytics`](app/admin/analytics/page.tsx) con RPC `analytics_staff_summary`, breakdown campagne `campaign_segment`, funnel iscrizioni per stato, statistiche per slug. **Incremento grafico:** barre impilate slug × stato ([`lib/gamestore/analytics-campaign-slug-chart.ts`](lib/gamestore/analytics-campaign-slug-chart.ts), [docs/sprint-v2-next-5.md](docs/sprint-v2-next-5.md)). Restano viste materializzate, grafici più ricchi su altre metriche e ulteriori campi CRM se necessario.
+Le serate ricorrenti devono avere identità, CTA e comunicazione coerente.
 
-**Incremento `v2-event-payments` (fatto nel repo):** migrazione additiva su `event_registration_action` (`confirm_payment`, `expire_payment`, `book` con `pending_payment`); Stripe Checkout + webhook; cron scadenza; UI e outbox. Design: [docs/design-v2-event-payments.md](docs/design-v2-event-payments.md).
+### 4. Community onboarding
 
-**Incremento `v2-comms-automation` (primo slice):** reminder ~24h via outbox (`event_reminder_24h`), cron dedicato, pagina staff `/admin/comms`, worker email esteso. **Slice successivo:** reminder ~7 giorni (`event_reminder_7d`, stesso cron `GET /api/cron/event-reminders`, chiavi idempotency distinte). Design: [docs/design-v2-comms-automation.md](docs/design-v2-comms-automation.md).
+- percorsi “sono nuovo qui”
+- pagine “come funziona una serata da noi”
+- copy più rassicurante per neofiti
+- CTA che riducono l’ansia da primo ingresso
 
-**Incremento `v2-product-preorders` (primo slice):** colonne `expected_fulfillment_at`, `stock_notified_at` e stato enum `awaiting_stock` su `product_reservation_requests`; UI staff in `/admin/product-requests` per stato, note e date (vuoto = azzera).
+### Outcome
 
-**Criteri di accettazione (bozza) per `v2-event-payments`:**
+Il sito smette di essere solo un calendario e diventa un **community OS locale**.
 
-- Migrazione **additiva** sola: nessuna rimozione di colonne/tabelle V1; enum `registration_status` esteso (es. `pending_payment`) con default invariato per righe esistenti.
-- **Un solo** entrypoint mutazione prenotazione lato DB: resta `event_registration_action` (nuovi branch o parametri opzionali), oppure pagamento orchestrato da provider esterno che aggiorna solo stato tramite quella RPC.
-- RLS invariata nella semantica: solo `has_role` per privilegi staff/admin; niente bypass env-based.
-- UI: stato “in attesa di pagamento” visibile a utente e staff; nessuna logica capacità nel client oltre a messaggi/CTA.
-- Test: estendere `npm run smoke:test` o script dedicato quando esistono operazioni RPC nuove verificabili senza carta reale (mock provider / flag test).
+---
 
-**Criteri di accettazione (bozza) per `v2-comms-automation`:**
+## Fase 3 - CRM Operativo
 
-- Nessun invio duplicato: riuso **outbox** con `idempotency_key` stabile per ogni tipo di messaggio (reminder `event_reminder_24h:{event_id}:{user_id}` e `event_reminder_7d:{event_id}:{user_id}`, campagna `campaign:{segment}:{campaign_id}:{user_id}` con segmenti newsletter, marketing, **registration_waitlisted** e **`registration_confirmed`**, digest staff stock opzionale `product_stock_staff_summary:YYYY-MM-DDTHH`, messaggi waitlist/promozione da RPC booking ove applicabile).
-- Worker o cron esistente esteso (stesso path o job dedicato) con canali aggiuntivi solo dove già previsti dall’enum `outbox_channel` o con migrazione enum **additiva**.
-- Staff non invia messaggi “a mano” bypassando outbox per flussi che devono essere tracciati; UI admin solo enqueue / template.
-- Metriche minime: conteggio `sent` / `failed` consultabile (SQL o vista) per debug — **primo slice in repo:** RPC staff `outbox_email_stats_for_staff` e riepilogo in [`/admin/comms`](app/admin/comms/page.tsx) (per canale `email`, raggruppamento per `payload->>'kind'` e `status`). Restano metriche avanzate / campagne / dashboard unificata come estensioni.
+Obiettivo: dare allo staff strumenti semplici ma utili per seguire persone, gruppi e comportamenti.
 
-**Criteri di accettazione (bozza) per `v2-product-preorders`:**
+### Funzioni chiave
 
-- Schema **additivo** su `product_reservation_requests` (o tabella figlia) senza rompere il form V1; stati espliciti se servono oltre l’enum attuale.
-- Priorità e quantità restano coerenti con RLS: utente vede le proprie richieste; staff vede tutto come oggi.
-- Nessun inventario “vero” in V2-lite: solo stati richiesta e notifiche (allineato PRD §4.4 prima del catalogo V3).
+- Timeline cliente:
+  - prenotazioni
+  - richieste prodotto
+  - note staff
+  - opt-in
+  - interessi
+- Segmenti dinamici:
+  - nuovi iscritti
+  - inattivi 30/60 giorni
+  - regulars
+  - utenti waitlist frequenti
+  - clienti interessati per singolo gioco
+- Tag automatici derivati da comportamento.
+- Vista “next best action” per staff.
 
-### Osservabilità e operatività ricorrente
+### Outcome
 
-Da tenere fuori dal codice ma dentro la routine del progetto:
+Da anagrafica passiva a CRM realmente utile per retention e qualità della community.
 
-- **Log:** Vercel (runtime / cron) e Supabase (API, Auth, Postgres) per errori 5xx, timeout outbox, spike su `event_registration_action`.
-- **Segreti:** rotazione periodica di `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` / `OUTBOX_CRON_SECRET`, chiavi Resend e Stripe (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`); aggiornare env su Vercel e `.env.local` locale.
-- **Backup:** policy backup / PITR del progetto Supabase in linea con il rischio accettato.
-- **Locale vs CI:** prima di una PR esegui `npm run ci` (stesso ordine della [CI GitHub](.github/workflows/ci.yml): lint, test, build). Il build in CI usa URL Supabase placeholder; in locale `next build` usa `.env.local` se presente.
-- **RPC e migrazioni additive:** nuove funzioni SQL esposte all’app restano compatibili con deploy incrementale; estendere [`scripts/smoke-test-booking.mjs`](scripts/smoke-test-booking.mjs) (o smoke dedicati) quando una RPC diventa critica per il flusso utente.
-- **SLO / alert (opzionale):** definire soglie minime (es. tasso fallimenti outbox email, latenza RPC booking) e controllarle da dashboard Vercel/Supabase o alert esterni, senza introdurre dipendenze obbligate in V1.
+---
+
+## Fase 4 - Messaging Locale
+
+Obiettivo: usare canali locali dove la community vive davvero.
+
+### Priorità
+
+- Newsletter semplice ma segmentata.
+- Telegram broadcast o bridge informativo.
+- WhatsApp solo dove c’è valore chiaro e consenso.
+- Template comunicazioni per:
+  - reminder
+  - posti liberati
+  - annuncio nuova serata
+  - arrivo prodotto richiesto
+
+### Regola
+
+Nessuna comunicazione va costruita come marketing rumoroso. Deve essere:
+
+- utile
+- contestuale
+- segmentata
+- locale
+
+---
+
+## Fase 5 - Demand Capture E Monetizzazione Leggera
+
+Obiettivo: capire cosa vuole davvero la community prima di costruire e-commerce pieno.
+
+### Priorità
+
+- richieste prodotto migliorate
+- wishlist per gioco/categoria
+- preorder light
+- alert “arrivato in negozio”
+- ranking domanda prodotti per aiutare acquisti e stock
+
+### Outcome
+
+La domanda reale guida inventory e preorder, senza costruire troppo presto un catalogo complesso.
+
+---
+
+## Fase 6 - Analytics E Decision Loop
+
+Obiettivo: dare al team numeri utili a decidere, non vanity metrics.
+
+### Metriche da avere
+
+- fill rate per evento e per tipo evento
+- tasso repeat booking
+- iscritti nuovi vs utenti di ritorno
+- conversione waitlist -> confirmed
+- richieste prodotto per categoria
+- community growth per linea di gioco
+- utenti inattivi da riattivare
+
+### Outcome
+
+Il prodotto diventa uno strumento decisionale, non solo esecutivo.
+
+---
+
+## Backlog Prioritizzato
+
+## Now
+
+- Allineare documentazione repo.
+- Creare `CLAUDE.md` o equivalente.
+- Chiudere worker outbox.
+- Introdurre reminder eventi e notifiche waitlist.
+- Migliorare dettaglio evento e UX booking.
+- Creare dashboard staff minima con KPI operativi.
+
+## Next
+
+- Rifare le pagine gioco come community hubs veri.
+- Aggiungere segmenti CRM e timeline utente.
+- Migliorare newsletter e canali locali.
+- Introdurre serate ricorrenti come concetto di prodotto.
+
+## Later
+
+- Wishlist/preorder light.
+- analytics avanzate
+- loyalty/community score leggero
+- monetizzazione più strutturata
+
+---
+
+## Mega Piano Esecutivo
+
+## Track A - Product Foundation
+
+1. Aggiornare `README.md`.
+2. Creare `CLAUDE.md` con coding standards e architecture notes.
+3. Mappare i flussi “happy path” del prodotto:
+   - signup
+   - booking
+   - cancel
+   - waitlist
+   - check-in
+   - product request
+4. Scrivere checklist release per staff.
+
+## Track B - Messaging Runtime
+
+1. Definire contratto payload outbox per ogni tipo messaggio.
+2. Implementare worker dispatch.
+3. Gestire retry, logging e failure states.
+4. Collegare reminder automatici e promozione waitlist.
+5. Aggiungere anteprima template.
+
+## Track C - Event Experience
+
+1. Ridisegnare pagina evento.
+2. Mostrare disponibilità in modo utile.
+3. Migliorare feedback booking/cancel/waitlist.
+4. Aggiungere blocchi informativi per serata.
+5. Uniformare CTA homepage, hub giochi ed eventi.
+
+## Track D - Staff OS
+
+1. Dashboard con KPI essenziali.
+2. Vista eventi in arrivo con stato operativo.
+3. Vista utenti da seguire.
+4. Vista richieste prodotto aggregate.
+5. Export e check-in rifiniti.
+
+## Track E - Community OS
+
+1. Definire 4-6 linee di gioco prioritarie.
+2. Costruire template di pagina community.
+3. Collegare eventi filtrati per gioco.
+4. Aggiungere onboarding “nuovo giocatore”.
+5. Introdurre strutture per serate ricorrenti.
+
+## Track F - CRM Evoluto
+
+1. Timeline utente.
+2. Segmenti dinamici.
+3. Tag automatici.
+4. Filtri e quick actions per staff.
+5. Report utenti da riattivare.
+
+---
+
+## Ordine Di Esecuzione Consigliato
+
+1. Documentazione e standard di sviluppo.
+2. Runtime comunicazioni.
+3. Miglioramento esperienza evento.
+4. Dashboard e workflow staff.
+5. Hub community.
+6. CRM operativo.
+7. Messaging locale avanzato.
+8. Demand capture e analytics avanzate.
+
+Questo ordine massimizza il valore senza buttare via il lavoro già fatto.
+
+---
+
+## Rischi Da Evitare
+
+- Deviare verso e-commerce full-stack troppo presto.
+- Aggiungere feature isolate senza migliorare il loop evento -> ritorno.
+- Aumentare la complessità admin senza insight operativi.
+- Usare canali messaging senza consenso e segmentazione.
+- Fare rewrite architetturali invece di completare i loop esistenti.
+
+---
+
+## Definizione Di Successo
+
+La roadmap sta funzionando se, entro la prossima fase, il negozio può dire:
+
+- gli eventi si scoprono e si prenotano facilmente
+- i no-show si riducono
+- la waitlist viene gestita bene
+- lo staff sa chi seguire e cosa pubblicare
+- ogni community di gioco ha una casa digitale credibile
+- le persone tornano più spesso in negozio

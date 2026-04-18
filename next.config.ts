@@ -18,6 +18,11 @@ if (supabaseUrl) {
   }
 }
 
+/**
+ * Struttura URL:
+ * - `/giochi` — hub; `/giochi/[slug]` — silo CMS; `/giochi/beyblade-x` — eccezione statica;
+ * - `/news/[slug]` — articoli; `/events/[slug]` — eventi (vedi `app/sitemap.ts`).
+ */
 const nextConfig: NextConfig = {
   cacheComponents: false,
   images: {

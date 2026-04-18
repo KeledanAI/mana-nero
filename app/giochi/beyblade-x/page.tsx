@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "BeyBlade X — Tornei",
   description:
     "Arena Xtreme, burst, ranking e serate BeyBlade X al Mana Nero di Tradate. Testi dimostrativi — programma in aggiornamento.",
+  alternates: { canonical: "/giochi/beyblade-x" },
 };
 
 export default function BeybladeXTournamentsPage() {
@@ -34,8 +35,8 @@ export default function BeybladeXTournamentsPage() {
 
         <div className="page-frame pb-12 pt-4 sm:pb-14 sm:pt-5">
           <header className="max-w-3xl border-b border-white/10 pb-8 sm:pb-10">
-            <nav className="mb-3 text-sm text-white/55">
-              <Link href="/community" className="transition hover:text-white">
+            <nav className="mb-3 text-sm text-white/55" aria-label="Percorso di navigazione">
+              <Link href="/giochi" className="transition hover:text-white">
                 Giochi e Tornei
               </Link>
               <span className="mx-2 text-white/35">/</span>
