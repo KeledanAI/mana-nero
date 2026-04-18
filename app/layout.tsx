@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fraunces, Manrope } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -6,6 +7,20 @@ import "./globals.css";
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
+
+const display = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  axes: ["opsz", "SOFT"],
+});
+
+const body = Manrope({
+  subsets: ["latin"],
+  variable: "--font-body",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
@@ -23,8 +38,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="it" suppressHydrationWarning>
-      <body className="antialiased">
+    <html
+      lang="it"
+      suppressHydrationWarning
+      className={`${display.variable} ${body.variable}`}
+    >
+      <body className="font-body antialiased">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

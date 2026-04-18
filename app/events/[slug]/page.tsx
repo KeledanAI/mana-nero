@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { notFound } from "next/navigation";
 
+import { PublicShell } from "@/components/public-shell";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { eventCardImageUrl } from "@/lib/design/media";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatCurrencyLabel,
@@ -82,87 +83,155 @@ export default async function EventDetailPage({ params, searchParams }: PageProp
   const checkoutAmount = eventRequiresOnlinePayment(event)
     ? eventCheckoutAmountCents(event) / 100
     : null;
+  const heroUrl = eventCardImageUrl(event.cover_image_path, event.slug, 0);
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-12 sm:px-8">
-      <Breadcrumb
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Eventi", href: "/events" },
-          { label: event.title },
-        ]}
-        className="mb-6"
-      />
-      <Card className="border-border/70 bg-card/85">
-        <CardHeader className="gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {event.event_categories?.name ? <Badge variant="secondary">{event.event_categories.name}</Badge> : null}
-            {event.game_type ? <Badge variant="outline">{event.game_type}</Badge> : null}
-            <Badge variant="outline">{event.capacity} posti</Badge>
-          </div>
-          <CardTitle className="text-4xl">{event.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <p className="text-sm text-foreground/70">{formatDateTime(event.starts_at)}</p>
-          {event.price_display ? <p className="text-sm text-foreground/70">{event.price_display}</p> : null}
-          <p className="text-base leading-7 text-foreground/75">
-            {event.description || "Descrizione evento non ancora disponibile."}
-          </p>
-
-          {paymentNotice === "success" ? (
-            <p className="text-sm text-emerald-700">
-              Pagamento registrato. L&apos;iscrizione risulta confermata non appena il sistema elabora il webhook.
-            </p>
-          ) : null}
-          {paymentNotice === "cancelled" ? (
-            <p className="text-sm text-foreground/75">Pagamento annullato. Puoi riprovare quando vuoi.</p>
-          ) : null}
-          {checkoutError ? <p className="text-sm text-destructive">{checkoutError}</p> : null}
-
-          {registration ? (
-            <div className="space-y-4 rounded-xl border border-border/60 bg-secondary/40 p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-foreground/70">Stato iscrizione:</span>
-                <Badge variant="secondary">
-                  {formatRegistrationStatus(registration.status, registration.waitlist_position)}
+    <PublicShell>
+      <main>
+        <div
+          className="relative w-full overflow-hidden border-b border-white/10"
+          style={{
+            backgroundImage: `linear-gradient(180deg, rgba(8,10,21,0.45) 0%, rgba(8,10,21,0.92) 100%), url(${heroUrl})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="page-frame py-16 sm:py-20 lg:py-24">
+            <Breadcrumb
+              items={[
+                { label: "Home", href: "/" },
+                { label: "Eventi", href: "/events" },
+                { label: event.title },
+              ]}
+              className="mb-6"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {event.event_categories?.name ? (
+                <Badge className="border-0 bg-amber-400/20 text-amber-200 hover:bg-amber-400/20">
+                  {event.event_categories.name}
                 </Badge>
-              </div>
-              {registration.status === "pending_payment" &&
-              eventRequiresOnlinePayment(event) &&
-              checkoutAmount != null ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-foreground/75">
-                    Importo da pagare:{" "}
-                    <strong>{formatCurrencyLabel(checkoutAmount) ?? `${checkoutAmount} €`}</strong>
-                  </p>
-                  <form action={startEventPaymentCheckout} className="flex flex-wrap gap-3">
-                    <input type="hidden" name="registration_id" value={registration.id} />
-                    <input type="hidden" name="event_slug" value={event.slug} />
-                    <SubmitButton pendingLabel="Reindirizzamento a Stripe…">
-                      Completa pagamento
+              ) : null}
+              {event.game_type ? (
+                <Badge variant="outline" className="border-white/15 bg-white/5 text-white/80">
+                  {event.game_type}
+                </Badge>
+              ) : null}
+              <Badge variant="outline" className="border-white/15 bg-white/5 text-white/80">
+                {event.capacity} posti
+              </Badge>
+            </div>
+            <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
+              {event.title}
+            </h1>
+            <p className="mt-5 text-sm uppercase tracking-[0.2em] text-white/60">
+              {formatDateTime(event.starts_at)}
+            </p>
+            {event.price_display ? (
+              <p className="mt-2 text-sm text-white/60">{event.price_display}</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="page-frame grid gap-8 py-12 lg:grid-cols-[1.4fr_0.9fr]">
+          <article className="space-y-6">
+            <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+              <h2 className="text-lg font-semibold text-white">Dettagli evento</h2>
+              <p className="mt-4 whitespace-pre-wrap text-base leading-8 text-white/72">
+                {event.description || "Descrizione evento non ancora disponibile."}
+              </p>
+            </div>
+
+            {paymentNotice === "success" ? (
+              <p className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+                Pagamento registrato. L&apos;iscrizione risulta confermata non appena il sistema elabora il webhook.
+              </p>
+            ) : null}
+            {paymentNotice === "cancelled" ? (
+              <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/72">
+                Pagamento annullato. Puoi riprovare quando vuoi.
+              </p>
+            ) : null}
+            {checkoutError ? (
+              <p className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                {checkoutError}
+              </p>
+            ) : null}
+          </article>
+
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <div className="glass-panel rounded-[1.75rem] p-6">
+              <p className="text-[11px] uppercase tracking-[0.32em] text-amber-300/70">
+                La tua prenotazione
+              </p>
+              <h2 className="mt-3 text-xl font-semibold text-white">
+                {registration ? "Prenotazione attiva" : "Prenota il tuo posto"}
+              </h2>
+
+              {registration ? (
+                <div className="mt-5 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-white/70">Stato:</span>
+                    <Badge className="border-0 bg-cyan-400/18 text-cyan-100 hover:bg-cyan-400/18">
+                      {formatRegistrationStatus(registration.status, registration.waitlist_position)}
+                    </Badge>
+                  </div>
+                  {registration.status === "pending_payment" &&
+                  eventRequiresOnlinePayment(event) &&
+                  checkoutAmount != null ? (
+                    <div className="space-y-3 rounded-2xl border border-amber-300/25 bg-amber-300/[0.06] p-4">
+                      <p className="text-sm text-white/80">
+                        Importo da pagare:{" "}
+                        <strong className="text-white">
+                          {formatCurrencyLabel(checkoutAmount) ?? `${checkoutAmount} €`}
+                        </strong>
+                      </p>
+                      <form action={startEventPaymentCheckout}>
+                        <input type="hidden" name="registration_id" value={registration.id} />
+                        <input type="hidden" name="event_slug" value={event.slug} />
+                        <SubmitButton pendingLabel="Reindirizzamento a Stripe…" className="w-full">
+                          Completa pagamento
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  ) : null}
+                  <form action={cancelEventBooking}>
+                    <input type="hidden" name="event_id" value={event.id} />
+                    <SubmitButton
+                      variant="outline"
+                      pendingLabel="Annullamento..."
+                      className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                    >
+                      Cancella prenotazione
                     </SubmitButton>
                   </form>
                 </div>
-              ) : null}
-              <form action={cancelEventBooking}>
-                <input type="hidden" name="event_id" value={event.id} />
-                <SubmitButton variant="outline" pendingLabel="Annullamento...">
-                  Cancella prenotazione
-                </SubmitButton>
-              </form>
+              ) : user ? (
+                <form action={bookEvent} className="mt-5 space-y-3">
+                  <input type="hidden" name="event_id" value={event.id} />
+                  <SubmitButton pendingLabel="Prenotazione..." className="w-full">
+                    Prenota posto
+                  </SubmitButton>
+                  <p className="text-xs leading-5 text-white/55">
+                    Se i posti sono esauriti, verrai aggiunto in lista d&apos;attesa.
+                  </p>
+                </form>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  <Link
+                    href={`/auth/login?next=/events/${event.slug}`}
+                    className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition hover:bg-primary/90"
+                  >
+                    Accedi per prenotare
+                  </Link>
+                  <p className="text-xs leading-5 text-white/55">
+                    La registrazione richiede meno di 30 secondi.
+                  </p>
+                </div>
+              )}
             </div>
-          ) : user ? (
-            <form action={bookEvent}>
-              <input type="hidden" name="event_id" value={event.id} />
-              <SubmitButton pendingLabel="Prenotazione...">Prenota posto</SubmitButton>
-            </form>
-          ) : (
-            <Link href="/auth/login" className="text-sm font-medium text-primary hover:underline">
-              Accedi per prenotare
-            </Link>
-          )}
-        </CardContent>
-      </Card>
-    </main>
+          </aside>
+        </div>
+      </main>
+    </PublicShell>
   );
 }

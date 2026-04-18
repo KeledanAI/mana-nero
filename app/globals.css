@@ -40,12 +40,17 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body;
     background-image:
       radial-gradient(circle at top, rgba(246, 160, 63, 0.12), transparent 24%),
       radial-gradient(circle at 20% 20%, rgba(59, 197, 208, 0.1), transparent 28%),
       linear-gradient(180deg, #080b16 0%, #0c1120 55%, #090d19 100%);
     min-height: 100vh;
+  }
+  h1, h2, h3 {
+    @apply font-display;
+    font-feature-settings: "ss01" on, "ss02" on;
+    letter-spacing: -0.012em;
   }
   ::selection {
     background: rgba(246, 160, 63, 0.32);

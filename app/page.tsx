@@ -326,7 +326,8 @@ export default async function Home() {
                   <div>
                     <p className="font-medium">Orari</p>
                     <p className="mt-2 text-sm leading-7 text-white/62">
-                      Mar–Ven: 13:30–19:30, serate 21–00<br />
+                      Mar e Gio: 10–12, 13:30–19:30, serate 21–00<br />
+                      Mer e Ven: 13:30–19:30, serate 21–00<br />
                       Sab: 10–12, 13:30–19:30 · Dom: 13:30–19:30
                     </p>
                   </div>
@@ -367,14 +368,14 @@ export default async function Home() {
                   Non perderti le prossime serate e le novità in negozio.
                 </h2>
                 <p className="mt-4 max-w-2xl text-sm leading-8 text-white/68">
-                  Iscriviti alla newsletter per ricevere gli aggiornamenti su eventi,
-                  nuove uscite e offerte speciali.
+                  Crea un account Mana Nero per prenotare eventi, attivare la
+                  newsletter dalle preferenze e seguire la community del negozio.
                 </p>
               </div>
               <div className="rounded-[1.5rem] border border-white/10 bg-black/25 p-5">
                 <div className="grid gap-3">
                   <Button asChild className="h-12 rounded-full">
-                    <Link href="/protected">Gestisci le tue preferenze</Link>
+                    <Link href="/auth/sign-up">Crea il tuo account</Link>
                   </Button>
                   <Button
                     asChild
