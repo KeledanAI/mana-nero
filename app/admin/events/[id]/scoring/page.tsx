@@ -74,12 +74,19 @@ export default async function AdminEventScoringPage({ params, searchParams }: Pa
 
   return (
     <section className="grid gap-6">
-      <nav className="text-sm text-foreground/65">
+      <nav className="flex flex-wrap items-center gap-3 text-sm text-foreground/65">
         <Link
           href={`/admin/events/${event.id}`}
           className="font-medium text-primary hover:underline"
         >
           ← Torna alla scheda evento
+        </Link>
+        <span className="text-foreground/35">·</span>
+        <Link
+          href={`/admin/events/${event.id}/scoring/import`}
+          className="font-medium text-primary hover:underline"
+        >
+          Importa risultati da CSV
         </Link>
       </nav>
 
