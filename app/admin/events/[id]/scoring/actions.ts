@@ -10,6 +10,7 @@ import {
   deleteTournamentResult,
   recordTournamentResult,
 } from "@/lib/domain/tournaments";
+import { deleteAllTournamentResultsForEvent } from "@/lib/domain/tournament-import";
 
 function intFromForm(formData: FormData, key: string): number {
   const raw = formData.get(key);
@@ -117,4 +118,38 @@ export async function deleteTournamentResultAction(formData: FormData) {
 
   revalidatePath(`/admin/events/${eventId}/scoring`);
   redirect(`/admin/events/${eventId}/scoring?success=result_removed`);
+}
+
+/**
+ * "Reset risultati": cancella tutti i tournament_results dell'evento.
+ * Richiede una conferma testuale ("CANCELLA") inviata dal form per ridurre
+ * il rischio di click accidentali. Tracciato in CRM audit con il count.
+ */
+export async function deleteAllTournamentResultsAction(formData: FormData) {
+  const { supabase, user } = await requireUserWithRole("staff");
+  const eventId = String(formData.get("event_id") || "").trim();
+  const confirm = String(formData.get("confirm") || "").trim().toUpperCase();
+  if (!eventId) redirect("/admin/events?error=missing_event_id");
+  if (confirm !== "CANCELLA") {
+    redirect(`/admin/events/${eventId}/scoring?error=confirmation_required`);
+  }
+
+  try {
+    const result = await deleteAllTournamentResultsForEvent(supabase, eventId);
+    await logStaffCrmAction(supabase, user.id, {
+      action_type: "reset_tournament_results",
+      entity_type: "event",
+      entity_id: eventId,
+      payload: { deleted: result.deleted },
+    });
+  } catch (error) {
+    redirect(
+      `/admin/events/${eventId}/scoring?error=${encodeURIComponent(
+        error instanceof Error ? error.message : "reset_failed",
+      )}`,
+    );
+  }
+
+  revalidatePath(`/admin/events/${eventId}/scoring`);
+  redirect(`/admin/events/${eventId}/scoring?success=results_reset`);
 }

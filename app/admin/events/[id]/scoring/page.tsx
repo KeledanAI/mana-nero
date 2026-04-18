@@ -14,6 +14,7 @@ import {
 } from "@/lib/gamestore/data";
 
 import {
+  deleteAllTournamentResultsAction,
   deleteTournamentResultAction,
   recordTournamentResultAction,
 } from "./actions";
@@ -32,6 +33,8 @@ const errorMessages: Record<string, string> = {
   final_rank_invalid: "Il rank finale deve essere un intero ≥ 1.",
   record_failed: "Salvataggio risultato non riuscito.",
   delete_failed: "Eliminazione del risultato non riuscita.",
+  reset_failed: "Reset dei risultati non riuscito.",
+  confirmation_required: "Conferma il reset digitando esattamente CANCELLA.",
   missing_event_id: "Evento mancante nel form.",
   missing_ids: "Identificativi mancanti.",
 };
@@ -39,6 +42,7 @@ const errorMessages: Record<string, string> = {
 const successMessages: Record<string, string> = {
   result_saved: "Risultato salvato.",
   result_removed: "Risultato rimosso.",
+  results_reset: "Tutti i risultati dell'evento sono stati cancellati.",
 };
 
 export default async function AdminEventScoringPage({ params, searchParams }: PageProps) {
@@ -267,8 +271,29 @@ export default async function AdminEventScoringPage({ params, searchParams }: Pa
       </Card>
 
       <Card className="border-border/70 bg-card/85">
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Risultati registrati</CardTitle>
+          {results.length > 0 ? (
+            <form
+              action={deleteAllTournamentResultsAction}
+              className="flex flex-wrap items-center gap-2 text-xs"
+            >
+              <input type="hidden" name="event_id" value={event.id} />
+              <Label htmlFor="reset_confirm" className="text-foreground/55">
+                Reset evento (digita CANCELLA):
+              </Label>
+              <Input
+                id="reset_confirm"
+                name="confirm"
+                placeholder="CANCELLA"
+                className="h-8 w-32"
+                autoComplete="off"
+              />
+              <SubmitButton variant="ghost" className="h-8 text-destructive">
+                Cancella tutti
+              </SubmitButton>
+            </form>
+          ) : null}
         </CardHeader>
         <CardContent className="grid gap-3">
           {results.length === 0 ? (

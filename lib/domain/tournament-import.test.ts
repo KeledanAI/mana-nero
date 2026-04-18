@@ -3,7 +3,13 @@ import { describe, it } from "node:test";
 
 import { parseTournamentResultsCsv } from "@/lib/imports/tournament-results-csv";
 
-import { commitImport, previewImport, type PreviewRow } from "./tournament-import";
+import {
+  commitImport,
+  deleteAllTournamentResultsForEvent,
+  previewImport,
+  type PreviewRow,
+  type RowOverrides,
+} from "./tournament-import";
 
 type StubBuilder = {
   table: string;
@@ -220,5 +226,151 @@ describe("commitImport", () => {
     assert.equal(result.failed.length, 1);
     assert.equal(result.failed[0]?.display_name, "Walkin");
     assert.match(result.failed[0]?.reason ?? "", /duplicate_walkin/);
+  });
+
+  it("respects per-row 'skip' override and counts skipped", async () => {
+    const supabase = makeUpsertSupabase(() => "ok");
+    const overrides: RowOverrides = new Map([
+      [3, { action: "skip" }],
+    ]);
+    const result = await commitImport(supabase as never, {
+      eventId: "evt-1",
+      rows: sampleRows,
+      overrides,
+    });
+    assert.equal(result.inserted_or_updated, 1);
+    assert.equal(result.skipped, 1);
+  });
+
+  it("respects 'walk_in' override clearing proposed_profile_id", async () => {
+    let observedProfileId: unknown = "still-mario";
+    const supabase = {
+      from() {
+        return {
+          upsert(payload: Record<string, unknown>) {
+            observedProfileId = payload.profile_id;
+            return {
+              select() {
+                return {
+                  single: async () => ({ data: { id: "x", ...payload }, error: null }),
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+    const overrides: RowOverrides = new Map([
+      [2, { action: "walk_in" }],
+    ]);
+    const result = await commitImport(supabase as never, {
+      eventId: "evt-1",
+      rows: [sampleRows[0]!],
+      overrides,
+    });
+    assert.equal(result.inserted_or_updated, 1);
+    assert.equal(observedProfileId, null);
+  });
+
+  it("respects 'link_to_profile' override forcing a specific profile_id", async () => {
+    let observedProfileId: unknown = null;
+    const supabase = {
+      from() {
+        return {
+          upsert(payload: Record<string, unknown>) {
+            observedProfileId = payload.profile_id;
+            return {
+              select() {
+                return {
+                  single: async () => ({ data: { id: "x", ...payload }, error: null }),
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+    const overrides: RowOverrides = new Map([
+      [3, { action: "link_to_profile", profile_id: "p-walkin-now-linked" }],
+    ]);
+    const result = await commitImport(supabase as never, {
+      eventId: "evt-1",
+      rows: [sampleRows[1]!],
+      overrides,
+    });
+    assert.equal(result.inserted_or_updated, 1);
+    assert.equal(observedProfileId, "p-walkin-now-linked");
+  });
+
+  it("fails 'link_to_profile' override when profile_id missing", async () => {
+    const supabase = makeUpsertSupabase(() => "ok");
+    const overrides: RowOverrides = new Map([
+      [3, { action: "link_to_profile" }],
+    ]);
+    const result = await commitImport(supabase as never, {
+      eventId: "evt-1",
+      rows: [sampleRows[1]!],
+      overrides,
+    });
+    assert.equal(result.inserted_or_updated, 0);
+    assert.equal(result.failed.length, 1);
+    assert.equal(result.failed[0]?.reason, "override_profile_id_required");
+  });
+});
+
+describe("deleteAllTournamentResultsForEvent", () => {
+  it("rejects without event_id", async () => {
+    await assert.rejects(
+      () => deleteAllTournamentResultsForEvent({} as never, ""),
+      /event_id_required/,
+    );
+  });
+
+  it("returns deleted count from supabase response", async () => {
+    let observedFilter: unknown;
+    const supabase = {
+      from() {
+        return {
+          delete() {
+            return {
+              eq(_col: string, val: unknown) {
+                observedFilter = val;
+                return {
+                  select: async () => ({
+                    data: [{ id: "r-1" }, { id: "r-2" }, { id: "r-3" }],
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+    const result = await deleteAllTournamentResultsForEvent(supabase as never, "evt-9");
+    assert.equal(observedFilter, "evt-9");
+    assert.equal(result.deleted, 3);
+  });
+
+  it("propagates supabase error", async () => {
+    const supabase = {
+      from() {
+        return {
+          delete() {
+            return {
+              eq() {
+                return {
+                  select: async () => ({ data: null, error: { message: "rls_violation" } }),
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+    await assert.rejects(
+      () => deleteAllTournamentResultsForEvent(supabase as never, "evt-1"),
+      /rls_violation/,
+    );
   });
 });
