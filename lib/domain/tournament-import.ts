@@ -158,13 +158,33 @@ export async function previewImport(
 
 export type ImportCommitResult = {
   inserted_or_updated: number;
+  skipped: number;
   failed: Array<{ source_row: number; display_name: string; reason: string }>;
 };
 
 /**
- * Esegue l'upsert riga-per-riga via `recordTournamentResult`. Errori per riga
- * non interrompono il batch: vengono accumulati e ritornati. Idempotente
- * grazie ai UNIQUE indexes su (event_id, profile_id) e (event_id, lower(display_name)).
+ * Override per riga deciso dallo staff in fase di preview.
+ *
+ * - `keep`: mantieni `proposed_profile_id` calcolato dal preview (default).
+ * - `walk_in`: ignora l'auto-link e salva la riga come walk-in (profile_id NULL).
+ * - `link_to_profile`: forza un profile_id specifico (cercato dal picker UI).
+ * - `skip`: non importare questa riga.
+ */
+export type RowOverrideAction = "keep" | "walk_in" | "link_to_profile" | "skip";
+
+export type RowOverride = {
+  action: RowOverrideAction;
+  profile_id?: string | null;
+};
+
+export type RowOverrides = Map<number, RowOverride>;
+
+/**
+ * Esegue l'upsert riga-per-riga via `recordTournamentResult`, applicando gli
+ * eventuali override dello staff (skip / walk_in / link_to_profile). Errori
+ * per riga non interrompono il batch: vengono accumulati e ritornati.
+ * Idempotente grazie ai UNIQUE indexes su (event_id, profile_id) e
+ * (event_id, lower(display_name)).
  */
 export async function commitImport(
   supabase: SupabaseClient,
@@ -173,18 +193,43 @@ export async function commitImport(
     rows: PreviewRow[];
     recordedBy?: string | null;
     format?: string | null;
+    overrides?: RowOverrides;
   },
 ): Promise<ImportCommitResult> {
   if (!params.eventId) throw new Error("event_id_required");
 
   let success = 0;
+  let skipped = 0;
   const failed: ImportCommitResult["failed"] = [];
 
   for (const row of params.rows) {
+    const override = params.overrides?.get(row.source_row);
+    const action: RowOverrideAction = override?.action ?? "keep";
+
+    if (action === "skip") {
+      skipped += 1;
+      continue;
+    }
+
+    let profileId: string | null = row.proposed_profile_id;
+    if (action === "walk_in") {
+      profileId = null;
+    } else if (action === "link_to_profile") {
+      profileId = override?.profile_id ?? null;
+      if (!profileId) {
+        failed.push({
+          source_row: row.source_row,
+          display_name: row.display_name,
+          reason: "override_profile_id_required",
+        });
+        continue;
+      }
+    }
+
     try {
       await recordTournamentResult(supabase, {
         eventId: params.eventId,
-        profileId: row.proposed_profile_id,
+        profileId,
         displayName: row.display_name,
         externalHandle: row.external_handle,
         format: params.format ?? row.format,
@@ -205,5 +250,32 @@ export async function commitImport(
     }
   }
 
-  return { inserted_or_updated: success, failed };
+  return { inserted_or_updated: success, skipped, failed };
+}
+
+/**
+ * Cancella tutti i risultati di un evento. Utile per "reset" prima di
+ * re-importare un CSV ripulito (anche se il commit è già idempotente, lo
+ * staff a volte vuole ripartire da zero perché ha cambiato il display_name
+ * o vuole spostare un giocatore da walk-in → profilo collegato).
+ *
+ * RLS staff_all su tournament_results garantisce l'autorizzazione.
+ */
+export async function deleteAllTournamentResultsForEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<{ deleted: number }> {
+  if (!eventId) throw new Error("event_id_required");
+
+  const { data, error } = await supabase
+    .from("tournament_results")
+    .delete()
+    .eq("event_id", eventId)
+    .select("id");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { deleted: (data ?? []).length };
 }
