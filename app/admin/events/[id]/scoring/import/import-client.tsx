@@ -21,6 +21,7 @@ import {
   type CommitActionResult,
   type PreviewActionResult,
 } from "./actions";
+import { RemoteFetchPanel } from "./remote-fetch-panel";
 
 type Props = { eventId: string };
 
@@ -134,6 +135,22 @@ export function ImportClient({ eventId }: Props) {
 
   return (
     <div className="grid gap-6">
+      <RemoteFetchPanel
+        onCsvFetched={(text, sourceHint) => {
+          setCsv(text);
+          setPreview(null);
+          setCommitResult(null);
+          if (
+            sourceHint === "generic" ||
+            sourceHint === "wizards_eventlink" ||
+            sourceHint === "play_pokemon" ||
+            sourceHint === "bandai_tcg_plus"
+          ) {
+            setSource(sourceHint as CsvImportSource);
+          }
+        }}
+      />
+
       <Card className="border-border/70 bg-card/85">
         <CardHeader>
           <CardTitle>1. Sorgente CSV</CardTitle>
