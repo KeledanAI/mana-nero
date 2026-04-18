@@ -777,6 +777,109 @@ export async function listAllGamePagesAdmin(supabase: SupabaseClient) {
   return (data ?? []) as GamePageRow[];
 }
 
+export type TournamentResultListRow = {
+  id: string;
+  event_id: string;
+  profile_id: string | null;
+  display_name: string;
+  external_handle: string | null;
+  format: string | null;
+  final_rank: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  points: number;
+  recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: { email: string | null; full_name: string | null } | null;
+};
+
+export async function getTournamentResultsForEventStaff(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<TournamentResultListRow[]> {
+  const { data, error } = await supabase
+    .from("tournament_results")
+    .select(
+      "id, event_id, profile_id, display_name, external_handle, format, final_rank, wins, losses, draws, points, recorded_by, created_at, updated_at",
+    )
+    .eq("event_id", eventId)
+    .order("final_rank", { ascending: true });
+
+  if (error) return [];
+
+  const rows = (data ?? []) as TournamentResultListRow[];
+  const profileIds = [...new Set(rows.map((r) => r.profile_id).filter((v): v is string => Boolean(v)))];
+  if (profileIds.length === 0) return rows;
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, email, full_name")
+    .in("id", profileIds);
+
+  const byId = new Map(
+    (profiles ?? []).map((p) => [p.id as string, { email: p.email as string | null, full_name: p.full_name as string | null }]),
+  );
+
+  return rows.map((r) => ({
+    ...r,
+    profiles: r.profile_id ? byId.get(r.profile_id) ?? null : null,
+  }));
+}
+
+export type ExternalIdentityListRow = {
+  id: string;
+  profile_id: string;
+  platform: string;
+  external_id: string;
+  external_username: string | null;
+  verified: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getExternalIdentitiesForUser(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<ExternalIdentityListRow[]> {
+  const { data, error } = await supabase
+    .from("player_external_identities")
+    .select(
+      "id, profile_id, platform, external_id, external_username, verified, notes, created_at, updated_at",
+    )
+    .eq("profile_id", userId)
+    .order("platform", { ascending: true });
+
+  if (error) return [];
+  return (data ?? []) as ExternalIdentityListRow[];
+}
+
+export type EventCategoryOption = {
+  slug: string;
+  name: string;
+};
+
+export async function getEventCategoryForEvent(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<EventCategoryOption | null> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("event_categories ( slug, name )")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const categoryRaw = (data as { event_categories?: { slug?: unknown; name?: unknown } | null })
+    .event_categories;
+  if (!categoryRaw) return null;
+  const slug = (categoryRaw as { slug?: unknown }).slug;
+  const name = (categoryRaw as { name?: unknown }).name;
+  if (typeof slug !== "string" || typeof name !== "string") return null;
+  return { slug, name };
+}
+
 export function formatCurrencyLabel(value: number | null) {
   if (value == null) return null;
   return new Intl.NumberFormat("it-IT", {

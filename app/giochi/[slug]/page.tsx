@@ -88,6 +88,14 @@ export default async function GamePageDetail({ params }: PageProps) {
                 variant="outline"
                 className="h-12 rounded-full border-white/25 bg-white/5 px-7 text-sm text-white hover:bg-white/12 hover:text-white"
               >
+                <Link href={`/giochi/${page.slug}/ranking`}>Classifica locale</Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="h-12 rounded-full border-white/25 bg-white/5 px-7 text-sm text-white hover:bg-white/12 hover:text-white"
+              >
                 <Link href="/contact">Contatta lo staff</Link>
               </Button>
             </div>

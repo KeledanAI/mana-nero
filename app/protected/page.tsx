@@ -15,9 +15,11 @@ import {
   getUserRegistrations,
 } from "@/lib/gamestore/data";
 import { createClient } from "@/lib/supabase/server";
-import { CalendarDays, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import { CalendarDays, Globe2, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { redirect } from "next/navigation";
-import { saveProfile } from "./actions";
+import { deleteExternalIdentity, saveExternalIdentity, saveProfile } from "./actions";
+import { EXTERNAL_PLATFORMS, PLATFORM_LABELS, type ExternalPlatform } from "@/lib/domain/tournaments";
+import { getExternalIdentitiesForUser } from "@/lib/gamestore/data";
 
 const dashboardCards = [
   {
@@ -61,11 +63,14 @@ export default async function ProtectedPage({ searchParams }: ProtectedPageProps
     redirect("/auth/login");
   }
 
-  const [profile, registrations, productRequests] = await Promise.all([
+  const [profile, registrations, productRequests, externalIdentities] = await Promise.all([
     getProfileForUser(supabase, user.id),
     getUserRegistrations(supabase, user.id),
     getUserProductRequests(supabase, user.id),
+    getExternalIdentitiesForUser(supabase, user.id),
   ]);
+
+  const linkedPlatforms = new Map(externalIdentities.map((row) => [row.platform, row]));
 
   return (
     <section className="grid gap-6">
@@ -189,6 +194,96 @@ export default async function ProtectedPage({ searchParams }: ProtectedPageProps
                 Salva profilo
               </SubmitButton>
               {firstParam(query.success) ? <p className="text-sm text-emerald-700">{firstParam(query.success)}</p> : null}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card id="identita-esterne" className="border-border/70 bg-card/85">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Globe2 className="h-5 w-5 text-primary" />
+              <CardTitle>Identità esterne</CardTitle>
+            </div>
+            <p className="mt-2 text-sm text-foreground/65">
+              Collega gli account che usi sulle piattaforme ufficiali (DCI, BNID,
+              Play! Pokémon, WBO, Discord). Restano di tua proprietà; lo store
+              li usa solo per riconoscerti rapidamente al check-in e abbinarti
+              ai risultati torneo. Lo staff può marcarli come verificati al
+              banco.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-6">
+            {externalIdentities.length === 0 ? (
+              <p className="text-sm text-foreground/65">
+                Non hai ancora collegato nessun account esterno.
+              </p>
+            ) : (
+              <ul className="grid gap-3">
+                {externalIdentities.map((identity) => (
+                  <li
+                    key={identity.id}
+                    className="flex flex-col gap-2 rounded-2xl bg-secondary/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {PLATFORM_LABELS[identity.platform as ExternalPlatform] ?? identity.platform}
+                      </p>
+                      <p className="text-sm text-foreground/65">
+                        {identity.external_username
+                          ? `@${identity.external_username}`
+                          : identity.external_id || "—"}
+                        {identity.verified ? " · verificato dallo staff" : ""}
+                      </p>
+                    </div>
+                    <form action={deleteExternalIdentity}>
+                      <input type="hidden" name="identity_id" value={identity.id} />
+                      <SubmitButton variant="ghost" className="text-destructive">
+                        Rimuovi
+                      </SubmitButton>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form action={saveExternalIdentity} className="grid gap-4 rounded-2xl border border-border/60 p-4">
+              <div className="grid gap-2">
+                <Label htmlFor="platform">Piattaforma</Label>
+                <select
+                  id="platform"
+                  name="platform"
+                  defaultValue=""
+                  required
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="" disabled>
+                    Seleziona una piattaforma…
+                  </option>
+                  {EXTERNAL_PLATFORMS.map((platform) => (
+                    <option key={platform} value={platform}>
+                      {PLATFORM_LABELS[platform]}
+                      {linkedPlatforms.has(platform) ? " · già collegata (sovrascrivi)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="external_username">Username / handle</Label>
+                  <Input id="external_username" name="external_username" placeholder="es. mario#0001" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="external_id">ID univoco (opzionale)</Label>
+                  <Input id="external_id" name="external_id" placeholder="es. DCI 123456789" />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Note (opzionale)</Label>
+                <Input id="notes" name="notes" placeholder="es. account principale, alt, ecc." />
+              </div>
+              <SubmitButton className="w-fit" pendingLabel="Salvataggio identità...">
+                Salva identità
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>
