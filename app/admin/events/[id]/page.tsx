@@ -72,6 +72,12 @@ export default async function AdminEventDetailPage({
               <Link href={`/admin/events/${event.id}/participants.csv`} className="text-sm font-medium text-primary hover:underline">
                 Export CSV
               </Link>
+              <Link
+                href={`/admin/events/${event.id}/scoring`}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Risultati torneo
+              </Link>
             </div>
           </div>
           {firstParam(query.success) ? (
